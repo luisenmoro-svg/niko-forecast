@@ -1,0 +1,23 @@
+name: Foto de HubSpot
+
+on:
+  schedule:
+    - cron: '0 13,19 * * 1-5'   # 7:00 y 13:00 hora CDMX, lunes a viernes
+  workflow_dispatch:            # botón "Run workflow" para correrlo a mano
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/sync-hubspot.mjs
+        env:
+          HUBSPOT_TOKEN: ${{ secrets.HUBSPOT_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DEAL_KWP_PROPERTY: ${{ vars.DEAL_KWP_PROPERTY }}
+          DEAL_PIPELINE_IDS: ${{ vars.DEAL_PIPELINE_IDS }}

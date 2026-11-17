@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ticket System: capacidad y flujo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --paper: #F3F5F4; --panel: #FFFFFF; --ink: #15202B; --muted: #5A6774; --line: #D3DADF;
+  --azul: #2B5C8E; --azul-suave: #D8E4F0; --sol: #C98F0E; --ok: #2E7A53; --warn: #A86F12; --bad: #B23A2A;
+  --bad-suave: #F6E0DC; --warn-suave: #F5EAD4; --ok-suave: #DCEEE3;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --paper: #0E151C; --panel: #141E27; --ink: #E4EAEF; --muted: #93A0AC; --line: #25313C;
+    --azul: #6EA2D5; --azul-suave: #1C2D3E; --sol: #E6B547; --ok: #5DB887; --warn: #DDA446; --bad: #E2675A;
+    --bad-suave: #3A1F1C; --warn-suave: #362A16; --ok-suave: #16302A;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 15px; line-height: 1.45; font-variant-numeric: tabular-nums;
+}
+a { color: var(--azul); }
+:focus-visible { outline: 2px solid var(--azul); outline-offset: 2px; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; }
+
+/* Encabezado */
+header.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: baseline; justify-content: space-between; }
+h1 { font-stretch: 112%; font-weight: 750; font-size: 1.55rem; letter-spacing: -0.01em; margin: 0; }
+.meta-linea { color: var(--muted); font-size: 0.88rem; }
+.aviso { margin: 14px 0 0; padding: 10px 14px; border-left: 3px solid var(--sol); background: var(--panel); font-size: 0.9rem; }
+.controles { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 0.88rem; }
+select, input[type=email], button {
+  font: inherit; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px;
+}
+button { cursor: pointer; }
+button.primario { background: var(--azul); color: #fff; border-color: var(--azul); }
+
+/* Meta del mes: el elemento protagonista */
+.meta { margin-top: 28px; padding: 24px 24px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.meta-cifras { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.cifra .n { font-stretch: 125%; font-weight: 800; font-size: clamp(2rem, 4.4vw, 3.3rem); line-height: 1; letter-spacing: -0.02em; }
+.cifra .l { font-weight: 600; margin-top: 6px; }
+.cifra .s { color: var(--muted); font-size: 0.85rem; }
+.cifra.goal .n { color: var(--sol); }
+.cifra.forecast .n { color: var(--azul); }
+.cifra.delta.neg .n { color: var(--bad); }
+.cifra.delta.pos .n { color: var(--ok); }
+.barra { position: relative; height: 22px; margin: 22px 0 6px; background: var(--paper); border-radius: 4px; overflow: visible; }
+.barra .fc { position: absolute; inset: 0 auto 0 0; background: repeating-linear-gradient(135deg, var(--azul) 0 6px, var(--azul-suave) 6px 10px); border-radius: 4px; }
+.barra .re { position: absolute; inset: 0 auto 0 0; background: var(--ink); border-radius: 4px 0 0 4px; }
+.barra .gl { position: absolute; top: -6px; bottom: -6px; width: 3px; background: var(--sol); }
+.barra-ejes { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.8rem; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; font-size: 0.82rem; color: var(--muted); }
+.leyenda i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 6px; }
+
+/* Cadena de etapas */
+.cadena { margin-top: 18px; }
+.cadena-grid { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(64px, 1fr); gap: 6px; align-items: end; overflow-x: auto; padding-bottom: 4px; }
+.etapa { display: flex; flex-direction: column; justify-content: flex-end; min-height: 150px; }
+.etapa .col { background: var(--azul); border-radius: 3px 3px 0 0; min-height: 2px; }
+.etapa.inst .col { background: var(--ink); }
+.etapa .v { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; }
+.etapa .k { color: var(--muted); font-size: 0.78rem; }
+.etapa .e { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 0; font-stretch: 75%; font-weight: 600; font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Pestañas */
+.tabs { display: flex; gap: 4px; margin-top: 36px; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: none; padding: 10px 14px; font-weight: 650; font-stretch: 105%; color: var(--muted); }
+.tabs button[aria-selected=true] { color: var(--ink); border-bottom-color: var(--azul); }
+section.panel { padding-top: 22px; }
+section.panel[hidden] { display: none; }
+h2 { font-stretch: 108%; font-weight: 700; font-size: 1.15rem; margin: 30px 0 4px; }
+h2:first-child { margin-top: 0; }
+.nota { color: var(--muted); font-size: 0.86rem; margin: 0 0 12px; max-width: 78ch; }
+
+.resumen { display: flex; flex-wrap: wrap; gap: 28px; margin: 4px 0 8px; }
+.resumen div b { display: block; font-stretch: 118%; font-weight: 750; font-size: 1.6rem; }
+.resumen div span { color: var(--muted); font-size: 0.85rem; }
+
+/* Tablas */
+.tabla { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-stretch: 80%; font-weight: 650; color: var(--muted); background: var(--panel); position: sticky; top: 0; }
+th:first-child, td:first-child, td.izq, th.izq { text-align: left; }
+tr:last-child td { border-bottom: 0; }
+tfoot td { font-weight: 700; border-top: 1px solid var(--line); }
+td small { color: var(--muted); }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.78rem; font-weight: 650; }
+.pill.bad { background: var(--bad-suave); color: var(--bad); }
+.pill.warn { background: var(--warn-suave); color: var(--warn); }
+.pill.ok { background: var(--ok-suave); color: var(--ok); }
+.pill.mute { background: var(--paper); color: var(--muted); }
+.up { color: var(--ok); } .down { color: var(--bad); }
+.supuesto { border-bottom: 1px dotted var(--muted); cursor: help; }
+
+/* Equipos */
+.equipos { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.equipo { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--ok); border-radius: 6px; padding: 14px 16px; }
+.equipo.warn { border-left-color: var(--warn); }
+.equipo.bad { border-left-color: var(--bad); }
+.equipo.mute { border-left-color: var(--line); }
+.equipo h3 { margin: 0; font-size: 1rem; font-weight: 700; display: flex; justify-content: space-between; gap: 8px; }
+.equipo .util { font-stretch: 120%; font-weight: 800; font-size: 1.8rem; line-height: 1.1; margin-top: 6px; }
+.equipo ul { margin: 8px 0 0; padding-left: 18px; font-size: 0.84rem; color: var(--muted); }
+.equipo svg { display: block; width: 100%; height: 44px; margin-top: 8px; }
+
+/* Acceso */
+.acceso { max-width: 420px; margin: 12vh auto 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 28px; }
+.acceso form { display: flex; gap: 8px; margin-top: 14px; }
+.acceso input { flex: 1; }
+.estado { color: var(--muted); font-size: 0.9rem; margin-top: 12px; }
+.error { color: var(--bad); }
+
+@media (max-width: 720px) {
+  .meta-cifras { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wrap { padding: 18px 14px 48px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .barra .fc, .barra .re { transition: width .6s ease-out; }
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><p class="estado">Cargando…</p></div>
+
+<script>
+'use strict';
+// ====================== Configuración ======================
+const CFG = (typeof window !== 'undefined' && window.NIKO_CONFIG) || {};
+const DEMO = !CFG.supabaseUrl || CFG.supabaseUrl.includes('TU-PROYECTO');
+const DAY = 864e5;
+const fmt = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 0 });
+const fmt1 = new Intl.NumberFormat('es-MX', { maximumFractionDigits: 1 });
+const pct = v => (v == null || !isFinite(v)) ? '—' : fmt.format(v * 100) + ' %';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const sum = (a, f = x => x) => a.reduce((s, x) => s + (Number(f(x)) || 0), 0);
+const median = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const groupBy = (a, f) => a.reduce((m, x) => { const k = f(x); (m[k] ||= []).push(x); return m; }, {});
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+// ====================== Días hábiles (hora CDMX) ======================
+// Los días se representan como milisegundos UTC a medianoche.
+function toDay(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return Date.parse(v + 'T00:00:00Z');
+  const t = typeof v === 'number' ? v : Date.parse(v);
+  if (isNaN(t)) return null;
+  const d = new Date(t - 6 * 36e5);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+const isoDay = t => new Date(t).toISOString().slice(0, 10);
+let FERIADOS = new Set();
+function esHabil(t) { const w = new Date(t).getUTCDay(); return w !== 0 && w !== 6 && !FERIADOS.has(t); }
+function habilesEntre(a, b) { // desde a (incluido) hasta b (excluido)
+  if (a == null || b == null) return null;
+  const [s, e] = a <= b ? [a, b] : [b, a];
+  let n = 0; for (let t = s; t < e; t += DAY) if (esHabil(t)) n++;
+  return a <= b ? n : -n;
+}
+function siguientesHabiles(desde, n) { const out = []; let t = desde; while (out.length < n) { if (esHabil(t)) out.push(t); t += DAY; } return out; }
+const HOY = toDay(Date.now());
+
+// ====================== Modelo ======================
+// Recibe los datos crudos (de Supabase o de ejemplo) y calcula todo lo que muestra la página.
+function construirModelo(raw, opciones) {
+  const { horizonte, mes, segmento } = opciones;
+  FERIADOS = new Set(raw.feriados.map(f => toDay(f.fecha)));
+
+  const cat = {};
+  for (const c of raw.catalogo) cat[c.tipo + '|' + c.segmento] = c;
+  const buscarCat = (tipo, seg) => cat[tipo + '|' + seg] || raw.catalogo.find(c => c.tipo === tipo) || null;
+
+  const personas = {};
+  for (const p of raw.personas.filter(p => p.activo !== false)) personas[p.owner_id] = { ...p };
+  const ausencia = {};
+  for (const a of raw.ausencias) ausencia[a.owner_id + '|' + toDay(a.fecha)] = Number(a.horas) || 0;
+
+  const hace28 = HOY - 28 * DAY;
+  const habiles28 = Math.max(1, habilesEntre(hace28, HOY));
+
+  // --- Tickets
+  const tickets = raw.tickets.map(t0 => {
+    const t = { ...t0 };
+    const c = buscarCat(t.tipo, t.segmento);
+    t.cat = c;
+    t.sla = c && c.sla_dias != null ? Number(c.sla_dias) : null;
+    t.d0 = toDay(t.creado); t.d1 = toDay(t.cerrado);
+    t.abierto = t.d1 == null;
+    t.edad = habilesEntre(t.d0, t.d1 ?? HOY);
+    const enRevision = /review|revisi/i.test(t.etapa_ticket || '');
+    const h = c ? (enRevision ? c.esfuerzo_rev_h : c.esfuerzo_prod_h) : null;
+    const mult = c && c.unidad === 'sitio' ? Math.max(1, Number(t.sitios) || 1) : 1;
+    t.horas = h == null || h === '' || isNaN(h) ? null : Number(h) * mult;
+    t.firme = !!c && c.estado === 'firme';
+    t.estadoSla = t.sla == null ? 'sin' : t.edad > t.sla ? 'vencido' : t.edad >= 0.8 * t.sla ? 'riesgo' : 'ok';
+    t.creado28 = t.d0 != null && t.d0 >= hace28;
+    t.cerrado28 = t.d1 != null && t.d1 >= hace28;
+    t.persona = personas[t.owner_id] || null;
+    return t;
+  });
+  const abiertos = tickets.filter(t => t.abierto);
+
+  // --- Capacidad por persona en el horizonte
+  const dias = siguientesHabiles(HOY, horizonte);
+  const capDia = (p, d) => p.fte * p.foco * Math.max(0, p.jornada_h - (ausencia[p.owner_id + '|' + d] || 0));
+  for (const p of Object.values(personas)) {
+    const mios = tickets.filter(t => t.owner_id === p.owner_id);
+    const misAbiertos = mios.filter(t => t.abierto);
+    p.backlogN = misAbiertos.length;
+    p.backlogH = sum(misAbiertos, t => t.horas);
+    p.sinEsfuerzo = misAbiertos.filter(t => t.horas == null).length;
+    p.entradaDiaH = sum(mios.filter(t => t.creado28), t => t.horas) / habiles28;
+    p.entradaDiaN = mios.filter(t => t.creado28).length / habiles28;
+    p.salidaDiaN = mios.filter(t => t.cerrado28).length / habiles28;
+    p.capPorDia = dias.map(d => capDia(p, d));
+    p.dispH = sum(p.capPorDia);
+    p.reqH = p.backlogH + p.entradaDiaH * dias.length;
+    p.util = p.dispH > 0 ? p.reqH / p.dispH : null;
+    const capMedia = p.dispH / dias.length;
+    p.colaDias = capMedia > 0 ? p.backlogH / capMedia : Infinity;
+    const neto = capMedia - p.entradaDiaH;
+    p.diasVaciar = p.backlogH === 0 ? 0 : neto > 0 ? p.backlogH / neto : Infinity;
+    const conHoras = mios.filter(t => t.horas != null);
+    p.esfuerzoMedio = conHoras.length ? sum(conHoras, t => t.horas) / conHoras.length : null;
+    p.ticketsQueCaben = p.esfuerzoMedio ? Math.floor(p.dispH / p.esfuerzoMedio) : null;
+    p.ausenciasH = sum(dias, d => ausencia[p.owner_id + '|' + d] || 0);
+    let b = p.backlogH; p.proyeccion = [b];
+    for (const c of p.capPorDia) { b = Math.max(0, b + p.entradaDiaH - c); p.proyeccion.push(b); }
+  }
+
+  // --- Equipos (saturación)
+  const porEquipo = groupBy(Object.values(personas), p => p.equipo);
+  const equipos = Object.entries(porEquipo).map(([nombre, ps]) => {
+    const e = { nombre, personas: ps };
+    e.dispH = sum(ps, p => p.dispH);
+    e.reqH = sum(ps, p => p.reqH);
+    e.backlogH = sum(ps, p => p.backlogH);
+    e.backlogN = sum(ps, p => p.backlogN);
+    e.sinEsfuerzo = sum(ps, p => p.sinEsfuerzo);
+    e.util = e.dispH > 0 ? e.reqH / e.dispH : null;
+    e.entradaSem = sum(ps, p => p.entradaDiaN) * 5;
+    e.salidaSem = sum(ps, p => p.salidaDiaN) * 5;
+    e.proyeccion = dias.map((_, i) => sum(ps, p => p.proyeccion[i + 1])); e.proyeccion.unshift(e.backlogH);
+    const top = [...ps].sort((a, b) => b.backlogN - a.backlogN)[0];
+    e.concentracion = e.backlogN ? top.backlogN / e.backlogN : 0;
+    e.top = top;
+    e.diaVacio = e.proyeccion.findIndex((v, i) => i > 0 && v === 0);
+    e.alertas = [];
+    if (e.util == null) e.alertas.push('Sin horas disponibles en el horizonte');
+    else if (e.util > 1) e.alertas.push(`Faltan ${fmt.format(e.reqH - e.dispH)} h en ${dias.length} días hábiles`);
+    if (e.entradaSem > e.salidaSem * 1.1 && e.entradaSem >= 1) e.alertas.push(`La fila crece: entran ${fmt1.format(e.entradaSem)} y salen ${fmt1.format(e.salidaSem)} por semana`);
+    if (e.concentracion >= 0.7 && e.backlogN >= 5 && ps.length > 1) e.alertas.push(`${top.nombre} tiene ${pct(e.concentracion)} de los abiertos`);
+    if (ps.length === 1 && e.backlogN >= 5) e.alertas.push(`Depende de una sola persona (${top.nombre})`);
+    if (e.sinEsfuerzo) e.alertas.push(`${e.sinEsfuerzo} abiertos sin esfuerzo en el catálogo: la carga real es mayor`);
+    e.sinDatos = e.backlogN > 0 && e.sinEsfuerzo === e.backlogN;
+    e.nivel = e.sinDatos ? 'mute' : e.util == null || e.util > 1 ? 'bad' : e.util > 0.85 || e.alertas.length > 1 ? 'warn' : 'ok';
+    return e;
+  }).sort((a, b) => (b.util ?? 99) - (a.util ?? 99));
+  const sinPersona = abiertos.filter(t => !t.persona);
+
+  // --- Etapas y deals
+  const etapas = raw.etapas.filter(e => !segmento || e.pipeline === segmento).sort((a, b) => a.orden - b.orden);
+  const etapaPorId = Object.fromEntries(raw.etapas.map(e => [e.etapa_id, e]));
+  const deals = raw.deals.filter(d => !segmento || d.segmento === segmento);
+  const esInstalado = d => !!(etapaPorId[d.etapa_id] && etapaPorId[d.etapa_id].es_instalado);
+
+  const porEtapa = etapas.map(e => {
+    const ds = deals.filter(d => d.etapa_id === e.etapa_id);
+    return { ...e, sitios: ds.length, kwp: sum(ds, d => d.kwp) };
+  });
+
+  // Evolución semanal: T0, 1S, 2S…
+  const series = raw.series.filter(r => !segmento || r.segmento === segmento);
+  const semanas = raw.semanas.map((fecha, i) => {
+    const filas = series.filter(r => r.snapshot_date === fecha);
+    const pe = {};
+    for (const e of etapas) { const ds = filas.filter(r => r.etapa_id === e.etapa_id); pe[e.etapa_id] = { sitios: ds.length, kwp: sum(ds, d => d.kwp) }; }
+    return { fecha, etiqueta: i === 0 ? 'T0' : `${i}S`, porEtapa: pe, sitios: sum(Object.values(pe), x => x.sitios), kwp: sum(Object.values(pe), x => x.kwp) };
+  });
+
+  // --- Goal, forecast y real del mes
+  const [anio, m] = mes.split('-').map(Number);
+  const iniMes = Date.UTC(anio, m - 1, 1), finMes = Date.UTC(anio, m, 1);
+  const metaRow = raw.metas.find(x => toDay(x.mes) === iniMes);
+  const goal = metaRow ? { sitios: +metaRow.sitios, kwp: +metaRow.kwp } : (CFG.metaPorDefecto || { sitios: 80, kwp: 1200 });
+  const comprometidos = deals.filter(d => { const f = toDay(d.fecha_instalacion); return f != null && f >= iniMes && f < finMes; });
+  const ticketsPorDeal = {};
+  for (const t of abiertos) for (const id of (t.deal_ids || [])) (ticketsPorDeal[id] ||= []).push(t);
+
+  const evaluados = comprometidos.map(d => {
+    const r = { deal: d, instalado: esInstalado(d) };
+    const fecha = toDay(d.fecha_instalacion);
+    r.diasRestantes = habilesEntre(HOY, fecha);
+    if (r.instalado) { r.enForecast = true; r.motivo = 'Instalado'; return r; }
+    const ts = ticketsPorDeal[d.deal_id] || [];
+    if (!ts.length) { r.enForecast = r.diasRestantes >= 0; r.motivo = r.enForecast ? 'Sin tickets abiertos' : 'La fecha ya pasó y no está instalado'; r.supuesto = true; return r; }
+    let peor = null;
+    for (const t of ts) {
+      const cola = t.persona ? t.persona.colaDias : Infinity;
+      const restanteSla = Math.max(0, (t.sla ?? 0) - t.edad);
+      const demora = cola + restanteSla;
+      if (!peor || demora > peor.demora) peor = { t, demora, cola };
+    }
+    r.demora = peor.demora; r.cuello = peor.t;
+    r.enForecast = peor.demora <= r.diasRestantes;
+    r.motivo = !peor.t.persona ? `Owner fuera del modelo en ${peor.t.tipo}`
+      : r.enForecast ? 'A tiempo con la capacidad actual'
+      : `${peor.t.persona.equipo} (${peor.t.persona.nombre}): necesita ${fmt1.format(peor.demora)} días hábiles entre fila y SLA, y quedan ${r.diasRestantes}`;
+    return r;
+  });
+  const enF = evaluados.filter(r => r.enForecast), reales = evaluados.filter(r => r.instalado);
+  const metricas = {
+    goal,
+    plan: { sitios: comprometidos.length, kwp: sum(comprometidos, d => d.kwp) },
+    forecast: { sitios: enF.length, kwp: sum(enF, r => r.deal.kwp) },
+    real: { sitios: reales.length, kwp: sum(reales, r => r.deal.kwp) },
+    fuera: evaluados.filter(r => !r.enForecast).sort((a, b) => (b.demora ?? 0) - (a.demora ?? 0)),
+  };
+
+  // --- Resumen de tickets por tipo
+  const porTipo = Object.values(groupBy(tickets, t => t.tipo + '|' + (t.segmento || ''))).map(ts => {
+    const ab = ts.filter(t => t.abierto), cer = ts.filter(t => t.cerrado28);
+    const conSla = cer.filter(t => t.sla != null);
+    return {
+      tipo: ts[0].tipo, segmento: ts[0].segmento, equipo: ts[0].equipo, sla: ts[0].sla, firme: ts[0].firme,
+      abiertos: ab.length,
+      vencidos: ab.filter(t => t.estadoSla === 'vencido').length,
+      riesgo: ab.filter(t => t.estadoSla === 'riesgo').length,
+      edadMediana: median(ab.map(t => t.edad)),
+      creados28: ts.filter(t => t.creado28).length, cerrados28: cer.length,
+      cumplimiento: conSla.length ? conSla.filter(t => t.edad <= t.sla).length / conSla.length : null,
+      horasBacklog: sum(ab, t => t.horas),
+    };
+  }).sort((a, b) => b.abiertos - a.abiertos);
+
+  const cerrados28 = tickets.filter(t => t.cerrado28 && t.sla != null);
+  return {
+    tickets, abiertos, personas: Object.values(personas), equipos, sinPersona, dias,
+    porEtapa, semanas, metricas, porTipo,
+    resumen: {
+      abiertos: abiertos.length,
+      vencidos: abiertos.filter(t => t.estadoSla === 'vencido').length,
+      riesgo: abiertos.filter(t => t.estadoSla === 'riesgo').length,
+      sinSla: abiertos.filter(t => t.estadoSla === 'sin').length,
+      cumplimiento: cerrados28.length ? cerrados28.filter(t => t.edad <= t.sla).length / cerrados28.length : null,
+      sitiosT0: semanas[0]?.sitios ?? 0, kwpT0: semanas[0]?.kwp ?? 0,
+    },
+  };
+}
+
+// ====================== Datos: Supabase ======================
+let sb = null;
+async function traerTodo(tabla, columnas, filtro) {
+  const out = [];
+  for (let desde = 0; ; desde += 1000) {
+    let q = sb.from(tabla).select(columnas).range(desde, desde + 999);
+    if (filtro) q = filtro(q);
+    const { data, error } = await q;
+    if (error) throw new Error(`${tabla}: ${error.message}`);
+    out.push(...data);
+    if (data.length < 1000) break;
+  }
+  return out;
+}
+function elegirSemanas(fechas, t0) {
+  const ordenadas = [...fechas].sort();
+  const inicio = t0 && ordenadas.includes(t0) ? t0 : ordenadas[0];
+  const posteriores = ordenadas.filter(f => f >= inicio);
+  const out = [inicio];
+  let objetivo = toDay(inicio);
+  // un punto cada 5 días hábiles: la última foto disponible antes de cada corte
+  for (;;) {
+    let n = 0; let t = objetivo;
+    while (n < 5) { t += DAY; if (esHabil(t)) n++; }
+    objetivo = t;
+    const candidata = posteriores.filter(f => toDay(f) <= objetivo).pop();
+    if (toDay(posteriores[posteriores.length - 1]) < objetivo) break;
+    if (candidata && candidata !== out[out.length - 1]) out.push(candidata);
+  }
+  const ultima = posteriores[posteriores.length - 1];
+  if (ultima && ultima !== out[out.length - 1]) out.push(ultima);
+  return out;
+}
+async function cargarSupabase(t0) {
+  const [catalogo, personas, ausencias, feriados, metas, etapas, snaps] = await Promise.all([
+    traerTodo('catalogo', '*'), traerTodo('personas', '*'),
+    traerTodo('ausencias', '*', q => q.gte('fecha', isoDay(HOY))),
+    traerTodo('feriados', '*'), traerTodo('metas', '*'), traerTodo('etapas_deal', '*'),
+    traerTodo('snapshots', 'snapshot_date', q => q.order('snapshot_date')),
+  ]);
+  if (!snaps.length) throw new Error('Todavía no hay fotos de HubSpot. Corre el workflow «Foto de HubSpot» en GitHub Actions.');
+  FERIADOS = new Set(feriados.map(f => toDay(f.fecha)));
+  const fechas = snaps.map(s => s.snapshot_date);
+  const ultima = fechas[fechas.length - 1];
+  const semanas = elegirSemanas(fechas, t0);
+  const [deals, tickets, series] = await Promise.all([
+    traerTodo('deals_snapshot', '*', q => q.eq('snapshot_date', ultima)),
+    traerTodo('tickets_snapshot', '*', q => q.eq('snapshot_date', ultima)),
+    traerTodo('deals_snapshot', 'snapshot_date,deal_id,etapa_id,kwp,segmento', q => q.in('snapshot_date', semanas)),
+  ]);
+  return { catalogo, personas, ausencias, feriados, metas, etapas, deals, tickets, series, semanas, fechas, ultima };
+}
+
+// ====================== Datos: ejemplo ======================
+function datosEjemplo() {
+  let semilla = 11;
+  const rnd = () => { semilla = (semilla * 16807) % 2147483647; return (semilla - 1) / 2147483646; };
+  const pick = a => a[Math.floor(rnd() * a.length)];
+  const feriados = ['2026-11-16', '2026-12-25', '2027-01-01', '2027-02-01', '2027-03-15'].map(fecha => ({ fecha }));
+  FERIADOS = new Set(feriados.map(f => toDay(f.fecha)));
+  const seg = 'Enterprise';
+  const codigos = ['2.01', '2.02', '2.04', '2.06', '2.08', '2.10', '2.12', '2.13', '2.14', '2.15'];
+  const etapas = codigos.map((c, i) => ({ etapa_id: 'e' + c, etiqueta: c, pipeline: seg, orden: i, es_instalado: c === '2.15' }));
+  const catalogo = [
+    { tipo: 'Batch run', segmento: seg, equipo: 'Quoting', unidad: 'sitio', sla_dias: 1, esfuerzo_prod_h: 0.3, estado: 'supuesto' },
+    { tipo: 'Diseño y adicionales finales - enterprise', segmento: seg, equipo: 'Design', unidad: 'ticket', sla_dias: 2, esfuerzo_prod_h: 0.7, esfuerzo_rev_h: 0.3, estado: 'firme' },
+    { tipo: 'Ingeniería de detalle BT enterprise', segmento: seg, equipo: 'Engineering', unidad: 'ticket', sla_dias: 2, esfuerzo_prod_h: 4, estado: 'supuesto' },
+    { tipo: 'IX Aprobación diagrama unifilar', segmento: seg, equipo: 'IX', unidad: 'ticket', sla_dias: 0.125, esfuerzo_prod_h: 1, estado: 'supuesto' },
+    { tipo: 'Revisión de ingeniería LiveOps', segmento: seg, equipo: 'LiveOps', unidad: 'ticket', sla_dias: 0.125, esfuerzo_prod_h: 1, estado: 'supuesto' },
+    { tipo: 'Costeo final - enterprise', segmento: seg, equipo: 'Quoting', unidad: 'ticket', sla_dias: 1, esfuerzo_prod_h: 2, estado: 'supuesto' },
+    { tipo: 'Planeación Instalación', segmento: seg, equipo: 'Planning', unidad: 'ticket', sla_dias: 10, esfuerzo_prod_h: null, estado: 'por_definir' },
+  ];
+  const tipoPorEtapa = { '2.02': 0, '2.04': 1, '2.06': 2, '2.08': 3, '2.10': 4, '2.12': 5, '2.13': 6 };
+  const personas = [
+    { owner_id: 'd1', nombre: 'Diseño 1', equipo: 'Design', fte: 1, jornada_h: 8, foco: 0.9 },
+    { owner_id: 'd2', nombre: 'Diseño 2 (revisa)', equipo: 'Design', fte: 1, jornada_h: 8, foco: 0.5 },
+    { owner_id: 'q1', nombre: 'Costeo 1', equipo: 'Quoting', fte: 1, jornada_h: 8, foco: 0.8 },
+    { owner_id: 'g1', nombre: 'Ingeniería 1', equipo: 'Engineering', fte: 1, jornada_h: 8, foco: 0.9 },
+    { owner_id: 'g2', nombre: 'Ingeniería 2', equipo: 'Engineering', fte: 1, jornada_h: 8, foco: 0.9 },
+    { owner_id: 'g3', nombre: 'Ingeniería 3', equipo: 'Engineering', fte: 1, jornada_h: 8, foco: 0.9 },
+    { owner_id: 'x1', nombre: 'Interconexión 1', equipo: 'IX', fte: 1, jornada_h: 8, foco: 0.7 },
+    { owner_id: 'l1', nombre: 'LiveOps 1', equipo: 'LiveOps', fte: 1, jornada_h: 8, foco: 0.6 },
+    { owner_id: 'p1', nombre: 'Planeación 1', equipo: 'Planning', fte: 1, jornada_h: 8, foco: 0.8 },
+  ];
+  const dueños = groupBy(personas, p => p.equipo);
+  const proximos = siguientesHabiles(HOY + 7 * DAY, 3);
+  const ausencias = proximos.map(d => ({ owner_id: 'x1', fecha: isoDay(d), horas: 8, fuente: 'factorial' }));
+  const metas = [{ mes: isoDay(Date.UTC(new Date(HOY).getUTCFullYear(), new Date(HOY).getUTCMonth(), 1)), sitios: 80, kwp: 1200 }];
+
+  const deals = [];
+  const pesos = [14, 12, 16, 22, 18, 30, 26, 12, 10, 14];
+  let id = 1000;
+  codigos.forEach((c, i) => {
+    for (let k = 0; k < pesos[i]; k++) {
+      const off = Math.round(2 + (codigos.length - 1 - i) * 3 + rnd() * 18);
+      const fecha = rnd() < 0.85 ? isoDay(HOY + (c === '2.15' ? -Math.round(rnd() * 14) : off) * DAY) : null;
+      deals.push({ deal_id: String(id++), nombre: `${pick(['SIX', 'NETO', 'MOD'])} sitio ${id}`, segmento: seg, etapa_id: 'e' + c, kwp: Math.round((6 + rnd() * 24) * 10) / 10, fecha_instalacion: fecha });
+    }
+  });
+  const tickets = [];
+  let tid = 5000;
+  for (const d of deals) {
+    const c = d.etapa_id.slice(1); const ti = tipoPorEtapa[c];
+    if (ti == null) continue;
+    const cdef = catalogo[ti];
+    const equipo = dueños[cdef.equipo];
+    const owner = rnd() < 0.72 ? equipo[0] : pick(equipo);
+    const edad = Math.round(rnd() * (cdef.equipo === 'IX' ? 22 : 12));
+    tickets.push({ ticket_id: String(tid++), asunto: d.nombre, tipo: cdef.tipo, segmento: seg, equipo: cdef.equipo,
+      etapa_ticket: cdef.esfuerzo_rev_h && rnd() < 0.3 ? 'Under review' : pick(['New', 'In progress']),
+      owner_id: owner.owner_id, creado: new Date(HOY - edad * 1.4 * DAY + 15 * 36e5).toISOString(), cerrado: null, deal_ids: [d.deal_id], sitios: 1 });
+  }
+  for (let k = 0; k < 160; k++) {
+    const cdef = pick(catalogo); const owner = pick(dueños[cdef.equipo]);
+    const fin = HOY - Math.round(rnd() * 27) * DAY; const dur = Math.round(rnd() * 6) * DAY;
+    tickets.push({ ticket_id: String(tid++), asunto: 'Cerrado', tipo: cdef.tipo, segmento: seg, equipo: cdef.equipo, etapa_ticket: 'Closed',
+      owner_id: owner.owner_id, creado: new Date(fin - dur + 15 * 36e5).toISOString(), cerrado: new Date(fin + 20 * 36e5).toISOString(), deal_ids: [], sitios: 1 });
+  }
+  // fotos semanales hacia atrás: cada semana los sitios estaban una etapa antes con cierta probabilidad
+  const semanas = []; let t = HOY;
+  for (let i = 0; i < 7; i++) { semanas.unshift(isoDay(t)); let n = 0; while (n < 5) { t -= DAY; if (esHabil(t)) n++; } }
+  const series = [];
+  semanas.forEach((fecha, i) => {
+    const atras = semanas.length - 1 - i;
+    for (const d of deals) {
+      let idx = codigos.indexOf(d.etapa_id.slice(1));
+      for (let k = 0; k < atras; k++) if (rnd() < 0.35) idx--;
+      if (idx < 0) continue;
+      series.push({ snapshot_date: fecha, deal_id: d.deal_id, etapa_id: 'e' + codigos[idx], kwp: d.kwp, segmento: seg });
+    }
+  });
+  return { catalogo, personas, ausencias, feriados, metas, etapas, deals, tickets, series, semanas, fechas: semanas, ultima: semanas[semanas.length - 1] };
+}
+
+// ====================== Vista ======================
+const ESTADO = { raw: null, modelo: null, tab: 'flujo', unidad: 'sitios', horizonte: CFG.horizonteDias || 10, mes: isoDay(HOY).slice(0, 7), segmento: null, t0: null };
+
+function cifra(clase, n, l, s) { return `<div class="cifra ${clase}"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${s}</div></div>`; }
+function v(x) { return ESTADO.unidad === 'sitios' ? fmt.format(x.sitios) : fmt.format(x.kwp); }
+function u() { return ESTADO.unidad === 'sitios' ? 'sitios' : 'kWp'; }
+
+function vistaMeta(M) {
+  const k = ESTADO.unidad;
+  const g = M.goal[k] || 1;
+  const tope = Math.max(g, M.forecast[k], M.plan[k]) * 1.08;
+  const delta = M.forecast[k] - M.goal[k];
+  const [a, m] = ESTADO.mes.split('-').map(Number);
+  return `<section class="meta" aria-label="Meta del mes">
+    <div class="meta-cifras">
+      ${cifra('goal', v(M.goal), 'Company Goal', `Lo prometido para ${MESES[m - 1]} ${a}`)}
+      ${cifra('forecast', v(M.forecast), 'Forecast', `Lo que la capacidad actual alcanza a entregar, de ${v(M.plan)} comprometidos`)}
+      ${cifra('real', v(M.real), 'Real', 'Sitios que ya llegaron a instalación')}
+      ${cifra('delta ' + (delta < 0 ? 'neg' : 'pos'), (delta > 0 ? '+' : '') + fmt.format(delta), 'Delta', `Forecast contra goal, en ${u()}`)}
+    </div>
+    <div class="barra" role="img" aria-label="Real ${v(M.real)}, forecast ${v(M.forecast)} y goal ${v(M.goal)} ${u()}">
+      <div class="fc" style="width:${M.forecast[k] / tope * 100}%"></div>
+      <div class="re" style="width:${M.real[k] / tope * 100}%"></div>
+      <div class="gl" style="left:${g / tope * 100}%"></div>
+    </div>
+    <div class="barra-ejes"><span>0</span><span>${fmt.format(tope)} ${u()}</span></div>
+    <div class="leyenda">
+      <span><i style="background:var(--ink)"></i>Real</span>
+      <span><i style="background:repeating-linear-gradient(135deg,var(--azul) 0 3px,var(--azul-suave) 3px 5px)"></i>Forecast</span>
+      <span><i style="background:var(--sol)"></i>Goal</span>
+    </div>
+  </section>`;
+}
+
+function vistaCadena(etapas) {
+  const k = ESTADO.unidad;
+  const max = Math.max(1, ...etapas.map(e => e[k]));
+  return `<div class="cadena"><h2>Dónde están hoy los sitios</h2>
+    <p class="nota">Sitios y kWp en cada etapa del deal, de la foto más reciente. La última columna es la entrada a instalación.</p>
+    <div class="cadena-grid">${etapas.map(e => `
+      <div class="etapa ${e.es_instalado ? 'inst' : ''}" title="${esc(e.etiqueta)}: ${e.sitios} sitios, ${fmt1.format(e.kwp)} kWp">
+        <div class="v">${k === 'sitios' ? e.sitios : fmt.format(e.kwp)}</div>
+        <div class="k">${k === 'sitios' ? fmt.format(e.kwp) + ' kWp' : e.sitios + ' sitios'}</div>
+        <div class="col" style="height:${Math.round(e[k] / max * 110)}px"></div>
+        <div class="e">${esc(e.etiqueta)}</div>
+      </div>`).join('')}
+    </div></div>`;
+}
+
+function pillSla(t) {
+  if (t.estadoSla === 'vencido') return '<span class="pill bad">Vencido</span>';
+  if (t.estadoSla === 'riesgo') return '<span class="pill warn">En riesgo</span>';
+  if (t.estadoSla === 'ok') return '<span class="pill ok">A tiempo</span>';
+  return '<span class="pill mute">Sin SLA</span>';
+}
+const slaTxt = d => d == null ? '—' : d < 1 ? `${fmt1.format(d * 8)} h` : `${fmt1.format(d)} d`;
+const marcaSupuesto = (txt, firme) => firme ? txt : `<span class="supuesto" title="Valor del catálogo aún no firmado">${txt}</span>`;
+
+function vistaFlujo(M) {
+  const R = M.resumen, k = ESTADO.unidad;
+  const sem = M.semanas;
+  const etapas = M.porEtapa;
+  const delta = (a, b) => { const d = a - b; return d === 0 ? '' : ` <small class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${fmt.format(d)}</small>`; };
+  const vencidos = M.abiertos.filter(t => t.estadoSla === 'vencido').sort((a, b) => (b.edad - b.sla) - (a.edad - a.sla)).slice(0, 25);
+  const link = id => CFG.hubspotPortalId && !DEMO ? `<a href="https://app.hubspot.com/contacts/${CFG.hubspotPortalId}/record/0-5/${esc(id)}" target="_blank" rel="noopener">${esc(id)}</a>` : esc(id);
+  return `
+    <div class="resumen">
+      <div><b>${fmt.format(R.abiertos)}</b><span>tickets abiertos</span></div>
+      <div><b>${fmt.format(R.vencidos)}</b><span>fuera de SLA</span></div>
+      <div><b>${fmt.format(R.riesgo)}</b><span>en riesgo (80 % del SLA)</span></div>
+      <div><b>${pct(R.cumplimiento)}</b><span>cerrados a tiempo, últimos 28 días</span></div>
+      <div><b>${fmt.format(R.sitiosT0)} · ${fmt.format(R.kwpT0)}</b><span>sitios y kWp en T0 (${esc(sem[0]?.fecha || '—')})</span></div>
+    </div>
+
+    <h2>Qué cambió desde T0</h2>
+    <p class="nota">Cada columna es una foto semanal. El número pequeño es la diferencia contra T0. Elige otra fecha de T0 arriba para mover la línea base.</p>
+    <div class="tabla"><table>
+      <thead><tr><th>Etapa</th>${sem.map(s => `<th title="${s.fecha}">${s.etiqueta}<br><small>${s.fecha.slice(5)}</small></th>`).join('')}</tr></thead>
+      <tbody>${etapas.map(e => `<tr><td>${esc(e.etiqueta)}</td>${sem.map((s, i) => {
+        const x = s.porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 }, x0 = sem[0].porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 };
+        return `<td>${fmt.format(x[k])}${i ? delta(x[k], x0[k]) : ''}</td>`; }).join('')}</tr>`).join('')}</tbody>
+      <tfoot><tr><td>Total</td>${sem.map((s, i) => `<td>${fmt.format(s[k])}${i ? delta(s[k], sem[0][k]) : ''}</td>`).join('')}</tr></tfoot>
+    </table></div>
+
+    <h2>Volumen y SLA por tipo de ticket</h2>
+    <p class="nota">Edad en días hábiles desde la creación. Los valores subrayados con puntos vienen de filas del catálogo que todavía no están firmadas.</p>
+    <div class="tabla"><table>
+      <thead><tr><th>Tipo</th><th class="izq">Equipo</th><th>SLA</th><th>Abiertos</th><th>Vencidos</th><th>En riesgo</th><th>Edad mediana</th><th>Entraron 28 d</th><th>Salieron 28 d</th><th>A tiempo</th><th>Horas en fila</th></tr></thead>
+      <tbody>${M.porTipo.map(r => `<tr>
+        <td>${esc(r.tipo || 'Sin tipo')}<br><small>${esc(r.segmento || 'sin segmento')}</small></td>
+        <td class="izq">${esc(r.equipo || '—')}</td>
+        <td>${r.sla == null ? '<span class="pill mute">Por definir</span>' : marcaSupuesto(slaTxt(r.sla), r.firme)}</td>
+        <td>${r.abiertos}</td>
+        <td>${r.vencidos ? `<span class="pill bad">${r.vencidos}</span>` : 0}</td>
+        <td>${r.riesgo ? `<span class="pill warn">${r.riesgo}</span>` : 0}</td>
+        <td>${r.edadMediana == null ? '—' : fmt1.format(r.edadMediana)}</td>
+        <td>${r.creados28}</td><td>${r.cerrados28}</td>
+        <td>${pct(r.cumplimiento)}</td>
+        <td>${marcaSupuesto(fmt1.format(r.horasBacklog), r.firme)}</td></tr>`).join('')}</tbody>
+    </table></div>
+
+    <h2>Tickets más atrasados</h2>
+    <p class="nota">Los 25 abiertos con más días por encima de su SLA.</p>
+    ${vencidos.length ? `<div class="tabla"><table>
+      <thead><tr><th>Ticket</th><th class="izq">Tipo</th><th class="izq">Owner</th><th class="izq">Etapa</th><th>Edad</th><th>SLA</th><th>Atraso</th><th>Estado</th></tr></thead>
+      <tbody>${vencidos.map(t => `<tr><td>${link(t.ticket_id)}<br><small>${esc(t.asunto || '')}</small></td>
+        <td class="izq">${esc(t.tipo)}</td><td class="izq">${esc(t.persona?.nombre || t.owner_id || 'Sin owner')}</td>
+        <td class="izq">${esc(t.etapa_ticket)}</td><td>${t.edad} d</td><td>${slaTxt(t.sla)}</td>
+        <td>${fmt1.format(t.edad - t.sla)} d</td><td>${pillSla(t)}</td></tr>`).join('')}</tbody>
+    </table></div>` : '<p class="nota">No hay tickets fuera de SLA.</p>'}`;
+}
+
+function sparkline(puntos, capDia) {
+  const w = 300, h = 44, max = Math.max(1, ...puntos);
+  const x = i => i / (puntos.length - 1) * w, y = vv => h - 4 - vv / max * (h - 10);
+  const d = puntos.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p).toFixed(1)}`).join('');
+  const subeOBaja = puntos[puntos.length - 1] > puntos[0] ? 'var(--bad)' : 'var(--azul)';
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Horas en fila proyectadas: de ${fmt.format(puntos[0])} a ${fmt.format(puntos[puntos.length - 1])}">
+    <line x1="0" x2="${w}" y1="${h - 4}" y2="${h - 4}" stroke="var(--line)"/>
+    <path d="${d}" fill="none" stroke="${subeOBaja}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+function vistaCapacidad(M) {
+  const H = M.dias.length;
+  const fuera = M.metricas.fuera.slice(0, 20);
+  const fd = x => x === Infinity ? 'No se vacía' : fmt1.format(x);
+  return `
+    <p class="nota">Horas disponibles = FTE × % de foco × (jornada − ausencias), día por día durante los próximos ${H} días hábiles (hasta el ${isoDay(M.dias[H - 1])}). Horas requeridas = fila abierta + lo que entra al ritmo de los últimos 28 días. La carga se asigna al owner real de HubSpot.</p>
+
+    <h2>Saturación por equipo</h2>
+    <div class="equipos">${M.equipos.map(e => `
+      <article class="equipo ${e.nivel}">
+        <h3><span>${esc(e.nombre)}</span><span class="pill ${e.nivel}">${e.sinDatos ? 'Sin esfuerzo definido' : e.nivel === 'bad' ? 'Saturado' : e.nivel === 'warn' ? 'Al límite' : 'Con espacio'}</span></h3>
+        <div class="util">${e.sinDatos ? '—' : pct(e.util)}</div>
+        <div class="nota" style="margin:0">${fmt.format(e.reqH)} h requeridas de ${fmt.format(e.dispH)} h disponibles · ${e.backlogN} abiertos</div>
+        ${sparkline(e.proyeccion)}
+        <div class="nota" style="margin:2px 0 0">${e.sinDatos ? 'Sin esfuerzo en el catálogo: no se puede proyectar' : e.diaVacio > 0 ? `La fila se vacía el ${isoDay(M.dias[e.diaVacio - 1])}` : e.backlogH === 0 ? 'Sin fila' : `Quedan ${fmt.format(e.proyeccion[e.proyeccion.length - 1])} h en fila al final del horizonte`}</div>
+        ${e.alertas.length ? `<ul>${e.alertas.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+      </article>`).join('')}
+    </div>
+    ${M.sinPersona.length ? `<p class="aviso">${M.sinPersona.length} tickets abiertos tienen un owner que no está en la tabla de personas, así que no cuentan en ninguna capacidad. Agrégalos en Supabase &gt; personas.</p>` : ''}
+
+    <h2>Por persona</h2>
+    <div class="tabla"><table>
+      <thead><tr><th>Persona</th><th class="izq">Equipo</th><th>Foco</th><th>Ausencias (h)</th><th>Disponibles (h)</th><th>Requeridas (h)</th><th>Utilización</th><th>Abiertos</th><th>Le caben</th><th>Días de cola</th><th>Días para vaciar</th></tr></thead>
+      <tbody>${[...M.personas].sort((a, b) => (b.util ?? 0) - (a.util ?? 0)).map(p => `<tr>
+        <td>${esc(p.nombre)}</td><td class="izq">${esc(p.equipo)}</td><td>${pct(p.foco)}</td>
+        <td>${p.ausenciasH ? `<span class="pill warn">${fmt.format(p.ausenciasH)}</span>` : 0}</td>
+        <td>${fmt.format(p.dispH)}</td><td>${fmt.format(p.reqH)}</td>
+        <td><span class="pill ${p.util == null || (p.backlogN && p.sinEsfuerzo === p.backlogN) ? 'mute' : p.util > 1 ? 'bad' : p.util > 0.85 ? 'warn' : 'ok'}">${p.backlogN && p.sinEsfuerzo === p.backlogN ? 'Sin esfuerzo' : pct(p.util)}</span></td>
+        <td>${p.backlogN}${p.sinEsfuerzo ? ` <small title="sin esfuerzo en el catálogo">(${p.sinEsfuerzo} sin esfuerzo)</small>` : ''}</td>
+        <td>${p.ticketsQueCaben ?? '—'}</td><td>${fd(p.colaDias)}</td><td>${fd(p.diasVaciar)}</td></tr>`).join('')}</tbody>
+    </table></div>
+
+    <h2>Sitios comprometidos que no entran en el forecast</h2>
+    <p class="nota">Sitios con fecha de instalación este mes cuya cola más lenta (días de fila del owner + SLA restante del ticket) es mayor que los días hábiles que faltan para instalar.</p>
+    ${fuera.length ? `<div class="tabla"><table>
+      <thead><tr><th>Sitio</th><th>kWp</th><th>Instalación</th><th>Días hábiles restantes</th><th class="izq">Por qué no entra</th></tr></thead>
+      <tbody>${fuera.map(r => `<tr><td>${esc(r.deal.nombre)}</td><td>${fmt1.format(r.deal.kwp || 0)}</td><td>${esc(r.deal.fecha_instalacion)}</td><td>${r.diasRestantes}</td><td class="izq">${esc(r.motivo)}</td></tr>`).join('')}</tbody>
+    </table></div>` : '<p class="nota">Todos los sitios comprometidos del mes entran en el forecast.</p>'}`;
+}
+
+function render() {
+  const M = ESTADO.modelo, raw = ESTADO.raw;
+  const segmentos = [...new Set(raw.etapas.map(e => e.pipeline))].filter(Boolean);
+  const meses = []; const base = new Date(HOY);
+  for (let i = -2; i <= 3; i++) { const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + i, 1)); meses.push(isoDay(d.getTime()).slice(0, 7)); }
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <header class="top">
+      <div><h1>Ticket System: capacidad y flujo</h1>
+        <div class="meta-linea">Foto de HubSpot del ${esc(raw.ultima)}</div></div>
+      <div class="controles">
+        <label>Mes <select id="c-mes">${meses.map(m => { const [a, mm] = m.split('-'); return `<option value="${m}" ${m === ESTADO.mes ? 'selected' : ''}>${MESES[+mm - 1]} ${a}</option>`; }).join('')}</select></label>
+        <label>Segmento <select id="c-seg">${segmentos.map(s => `<option ${s === ESTADO.segmento ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
+        <label>T0 <select id="c-t0">${raw.fechas.map(f => `<option ${f === raw.semanas[0] ? 'selected' : ''}>${f}</option>`).join('')}</select></label>
+        <label>Ver en <select id="c-uni"><option value="sitios" ${ESTADO.unidad === 'sitios' ? 'selected' : ''}>sitios</option><option value="kwp" ${ESTADO.unidad === 'kwp' ? 'selected' : ''}>kWp</option></select></label>
+        <label>Horizonte <select id="c-hor">${[5, 10, 15, 20].map(n => `<option value="${n}" ${n === ESTADO.horizonte ? 'selected' : ''}>${n} días</option>`).join('')}</select></label>
+        ${DEMO ? '' : '<button id="c-salir" type="button">Salir</button>'}
+      </div>
+    </header>
+    ${DEMO ? '<p class="aviso">Datos de ejemplo. Llena config.js con tu proyecto de Supabase para ver los datos reales.</p>' : ''}
+    ${vistaMeta(M.metricas)}
+    ${vistaCadena(M.porEtapa)}
+    <div class="tabs" role="tablist">
+      <button role="tab" id="t-flujo" aria-controls="p-flujo" aria-selected="${ESTADO.tab === 'flujo'}">Flujo y SLA</button>
+      <button role="tab" id="t-cap" aria-controls="p-cap" aria-selected="${ESTADO.tab === 'cap'}">Capacidad y saturación</button>
+    </div>
+    <section class="panel" id="p-flujo" role="tabpanel" aria-labelledby="t-flujo" ${ESTADO.tab === 'flujo' ? '' : 'hidden'}>${vistaFlujo(M)}</section>
+    <section class="panel" id="p-cap" role="tabpanel" aria-labelledby="t-cap" ${ESTADO.tab === 'cap' ? '' : 'hidden'}>${vistaCapacidad(M)}</section>`;
+
+  const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+  on('c-mes', 'change', e => { ESTADO.mes = e.target.value; recalcular(); });
+  on('c-seg', 'change', e => { ESTADO.segmento = e.target.value; recalcular(); });
+  on('c-uni', 'change', e => { ESTADO.unidad = e.target.value; render(); });
+  on('c-hor', 'change', e => { ESTADO.horizonte = +e.target.value; recalcular(); });
+  on('c-t0', 'change', e => { ESTADO.t0 = e.target.value; cargar(); });
+  on('t-flujo', 'click', () => { ESTADO.tab = 'flujo'; render(); });
+  on('t-cap', 'click', () => { ESTADO.tab = 'cap'; render(); });
+  on('c-salir', 'click', async () => { await sb.auth.signOut(); location.reload(); });
+}
+
+function recalcular() {
+  ESTADO.modelo = construirModelo(ESTADO.raw, { horizonte: ESTADO.horizonte, mes: ESTADO.mes, segmento: ESTADO.segmento });
+  render();
+}
+
+async function cargar() {
+  const app = document.getElementById('app');
+  try {
+    if (DEMO) {
+      ESTADO.raw = datosEjemplo();
+      if (ESTADO.t0) { // en modo ejemplo, recorta la serie para simular otra línea base
+        const i = ESTADO.raw.semanas.indexOf(ESTADO.t0);
+        if (i > 0) ESTADO.raw.semanas = ESTADO.raw.semanas.slice(i);
+      }
+    } else {
+      ESTADO.raw = await cargarSupabase(ESTADO.t0);
+    }
+    if (!ESTADO.segmento) {
+      const segs = [...new Set(ESTADO.raw.etapas.map(e => e.pipeline))];
+      ESTADO.segmento = segs.includes('Enterprise') ? 'Enterprise' : segs[0] || null;
+    }
+    recalcular();
+  } catch (err) {
+    app.innerHTML = `<div class="acceso"><h1>No se pudieron cargar los datos</h1><p class="estado error">${esc(err.message)}</p></div>`;
+  }
+}
+
+function vistaAcceso(mensaje) {
+  const dominio = CFG.dominioPermitido || 'niko.mx';
+  document.getElementById('app').innerHTML = `
+    <div class="acceso">
+      <h1>Ticket System: capacidad y flujo</h1>
+      <p class="nota">Entra con tu correo de @${esc(dominio)}. Te mandamos un enlace de acceso.</p>
+      <form id="f-acceso">
+        <label for="correo" class="nota" hidden>Correo</label>
+        <input type="email" id="correo" required placeholder="tu.nombre@${esc(dominio)}" autocomplete="email">
+        <button class="primario" type="submit">Enviar enlace</button>
+      </form>
+      <p class="estado" id="estado-acceso">${mensaje ? esc(mensaje) : ''}</p>
+    </div>`;
+  document.getElementById('f-acceso').addEventListener('submit', async e => {
+    e.preventDefault();
+    const correo = document.getElementById('correo').value.trim().toLowerCase();
+    const estado = document.getElementById('estado-acceso');
+    if (!correo.endsWith('@' + dominio)) { estado.className = 'estado error'; estado.textContent = `Usa un correo de @${dominio}.`; return; }
+    const { error } = await sb.auth.signInWithOtp({ email: correo, options: { emailRedirectTo: location.origin + location.pathname } });
+    estado.className = error ? 'estado error' : 'estado';
+    estado.textContent = error ? error.message : `Enlace enviado a ${correo}. Ábrelo en este navegador.`;
+  });
+}
+
+async function iniciar() {
+  if (DEMO) return cargar();
+  sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
+  const { data } = await sb.auth.getSession();
+  if (data.session) return cargar();
+  vistaAcceso();
+  sb.auth.onAuthStateChange((ev, session) => { if (session) cargar(); });
+}
+
+if (typeof document !== 'undefined') iniciar();
+</script>
+</body>
+</html>

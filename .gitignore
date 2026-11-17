@@ -1,0 +1,12 @@
+# Datos internos: no se versionan
+datos/
+
+# Secretos locales
+.env
+.env.*
+!.env.example
+
+# Sistema / editor
+.DS_Store
+node_modules/
+.vercel/
