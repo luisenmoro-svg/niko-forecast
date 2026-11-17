@@ -61,8 +61,23 @@ Variables opcionales (pestaña *Variables*):
 
 | Variable | Por defecto |
 |---|---|
-| `DEAL_KWP_PROPERTY` | `kwp` (nombre interno de la propiedad de kWp en el deal; confírmalo en HubSpot) |
 | `DEAL_PIPELINE_IDS` | `160230047,917378954,71905038` (Enterprise, BD + SMBs, O&M) |
+
+**`DEAL_KWP_PROPERTY` ya no se configura.** El script recorre una cascada fija de
+propiedades de kWp y se queda con la primera que trae valor, de la más firme a la
+más temprana:
+
+1. `tamano_sistema_as_built_kwp_dc`
+2. `tamano_de_sistema__kwp___final_`
+3. `tamano_de_sistema__kwp__cotizacion`
+4. `sunvoy___project_size_kwp__final___number_`
+5. `tamano_de_sistema__kwp___preliminar_`
+
+La propiedad de la que salió cada valor queda guardada en `deals_snapshot.kwp_fuente`.
+
+> Si la variable `DEAL_KWP_PROPERTY` quedó definida de una instalación anterior,
+> **bórrala**: el script todavía la respeta como anulación y, si existe, reemplaza
+> la cascada completa por su valor.
 
 Corre el workflow a mano una vez desde **Actions > Foto de HubSpot > Run workflow**.
 

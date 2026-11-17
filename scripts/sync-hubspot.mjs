@@ -9,7 +9,15 @@ const SUPABASE_URL = req('SUPABASE_URL').replace(/\/$/, '');
 const SERVICE_KEY = req('SUPABASE_SERVICE_ROLE_KEY');
 
 const TIPO_PROP = env.TICKET_TYPE_PROPERTY || 'qt_tipo_solicitud';
-const KWP_PROP = env.DEAL_KWP_PROPERTY || 'kwp';
+// Lista en orden de prioridad: se toma la primera propiedad con valor.
+// Del dato más firme (As-Built) al más temprano (preliminar).
+const KWP_PROPS = (env.DEAL_KWP_PROPERTY || [
+  'tamano_sistema_as_built_kwp_dc',
+  'tamano_de_sistema__kwp___final_',
+  'tamano_de_sistema__kwp__cotizacion',
+  'sunvoy___project_size_kwp__final___number_',
+  'tamano_de_sistema__kwp___preliminar_',
+].join(',')).split(',').map(s => s.trim()).filter(Boolean);
 const INSTALL_PROP = env.DEAL_INSTALL_DATE_PROPERTY || 'fecha_de_instalacion__';
 const DEAL_PIPELINES = (env.DEAL_PIPELINE_IDS || '160230047,917378954,71905038')
   .split(',').map(s => s.trim()).filter(Boolean);
@@ -121,7 +129,7 @@ async function main() {
   }
 
   // 4. Deals activos de los pipelines + los que tengan tickets
-  const dealProps = ['dealname', 'dealstage', 'pipeline', KWP_PROP, INSTALL_PROP];
+  const dealProps = ['dealname', 'dealstage', 'pipeline', INSTALL_PROP, ...KWP_PROPS];
   const activos = [];
   for (const parte of chunk(etapasActivas, 90)) {
     activos.push(...await searchAll('deals', [{ filters: [
@@ -146,7 +154,7 @@ async function main() {
       nombre: d.properties.dealname,
       segmento: dealPipeLabel[d.properties.pipeline] || d.properties.pipeline,
       etapa_id: d.properties.dealstage,
-      kwp: num(d.properties[KWP_PROP]),
+      ...kwpDe(d.properties),
       fecha_instalacion: fecha(d.properties[INSTALL_PROP]),
     }));
 
@@ -180,6 +188,13 @@ async function main() {
   console.log(`Listo: ${filasDeals.length} deals y ${filasTickets.length} tickets guardados.`);
 }
 
+function kwpDe(props) {
+  for (const prop of KWP_PROPS) {
+    const v = num(props[prop]);
+    if (v != null && v > 0) return { kwp: v, kwp_fuente: prop };
+  }
+  return { kwp: null, kwp_fuente: null };
+}
 function num(v) { const n = parseFloat(v); return Number.isFinite(n) ? n : null; }
 function fecha(v) {
   if (!v) return null;

@@ -55,7 +55,13 @@ Cualquier cambio visual **debe seguir `Niko_Look_and_Feel.md`**. En corto:
 ## Reglas de trabajo
 
 - **No cambiar las fórmulas del dashboard** ni el **orden de las propiedades de kWp**
-  sin preguntar primero.
+  sin preguntar primero. Ese orden vive en `KWP_PROPS` (`scripts/sync-hubspot.mjs`):
+  cascada fija que empieza en `tamano_sistema_as_built_kwp_dc` y termina en
+  `tamano_de_sistema__kwp___preliminar_`; se toma la primera con valor y se
+  registra cuál fue en `deals_snapshot.kwp_fuente`.
+- **`DEAL_KWP_PROPERTY` ya no se configura.** Sigue existiendo en el código como
+  anulación, así que si está definida en GitHub reemplaza la cascada entera:
+  debe quedar borrada.
 - **Nunca pedir ni manejar** el token de HubSpot ni la service role key.
   Esos van solo en los Secrets de GitHub Actions.
 - La carpeta `datos/` tiene datos internos y **no se versiona** (ver `.gitignore`).

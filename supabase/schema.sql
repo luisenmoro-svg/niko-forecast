@@ -77,6 +77,7 @@ create table if not exists deals_snapshot (
   segmento          text,
   etapa_id          text,
   kwp               numeric,
+  kwp_fuente        text,                        -- propiedad de HubSpot de la que salió el kWp
   fecha_instalacion date,
   primary key (snapshot_date, deal_id)
 );
@@ -96,6 +97,9 @@ create table if not exists tickets_snapshot (
   sitios         integer not null default 1,
   primary key (snapshot_date, ticket_id)
 );
+
+-- Si ya habías corrido una versión anterior de este archivo:
+alter table deals_snapshot add column if not exists kwp_fuente text;
 
 create index if not exists deals_snapshot_etapa on deals_snapshot (snapshot_date, etapa_id);
 create index if not exists tickets_snapshot_owner on tickets_snapshot (snapshot_date, owner_id);
