@@ -10,3 +10,6 @@ datos/
 .DS_Store
 node_modules/
 .vercel/
+
+# Scaffolding local de desarrollo
+.claude/
