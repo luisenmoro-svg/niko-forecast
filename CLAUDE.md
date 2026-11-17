@@ -21,6 +21,7 @@ Dashboard de **flujo, SLA y capacidad** del Ticket System de Niko.
 | `scripts/sync-hubspot.mjs` | Sincronización HubSpot → Supabase |
 | `.github/workflows/sync.yml` | Agenda de la sincronización |
 | `README.md` | Instalación, cálculos y pendientes conocidos |
+| `Niko_Look_and_Feel.md` | Guía visual obligatoria para cualquier cambio de interfaz |
 
 ## Tablas
 
@@ -34,6 +35,22 @@ Escritas por el script: `snapshots`, `deals_snapshot`, `tickets_snapshot`, `etap
 - `personas`: la llave primaria `owner_id` es el **`hubspot_owner_id`**.
 - `segmento` debe coincidir con el nombre del pipeline de deal en HubSpot
   (por ejemplo «Enterprise» o «BD + SMBs»).
+
+## Look & feel
+
+Cualquier cambio visual **debe seguir `Niko_Look_and_Feel.md`**. En corto:
+
+- **Tokens `--hs-*`**, nunca HEX sueltos dentro de los componentes
+  (`--hs-bg`, `--hs-card`, `--hs-border`, `--hs-text`, `--hs-muted`,
+  `--hs-ink`, `--hs-yellow`, `--hs-red`, `--hs-red-bg`).
+- **Tipografía Lexend**, con respaldo `system-ui, sans-serif`. Tamaños estables,
+  sin escalarlos al ancho de pantalla.
+- **El amarillo solo como relleno, con texto negro.** Nunca texto amarillo sobre blanco.
+  Botón principal: fondo negro con texto blanco.
+- **Sin verdes.** El `--hs-green` que existe en el manual es una excepción heredada:
+  no extenderlo a secciones nuevas. Para éxito, usar check, texto explícito y neutros.
+- **Sin modo oscuro** ni fondos oscuros de página completa, degradados ni decoración.
+- Rojo únicamente para errores o bloqueos accionables, acompañado de texto.
 
 ## Reglas de trabajo
 

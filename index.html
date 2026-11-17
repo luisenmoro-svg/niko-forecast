@@ -6,135 +6,163 @@
 <title>Ticket System: capacidad y flujo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
+/* Tokens del manual claro de Niko (Niko_Look_and_Feel.md) */
 :root {
   color-scheme: light;
-  --paper: #F3F5F4; --panel: #FFFFFF; --ink: #15202B; --muted: #5A6774; --line: #D3DADF;
-  --azul: #2B5C8E; --azul-suave: #D8E4F0; --sol: #C98F0E; --ok: #2E7A53; --warn: #A86F12; --bad: #B23A2A;
-  --bad-suave: #F6E0DC; --warn-suave: #F5EAD4; --ok-suave: #DCEEE3;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --paper: #0E151C; --panel: #141E27; --ink: #E4EAEF; --muted: #93A0AC; --line: #25313C;
-    --azul: #6EA2D5; --azul-suave: #1C2D3E; --sol: #E6B547; --ok: #5DB887; --warn: #DDA446; --bad: #E2675A;
-    --bad-suave: #3A1F1C; --warn-suave: #362A16; --ok-suave: #16302A;
-  }
+  --hs-bg: #F5F8FA; --hs-card: #FFFFFF; --hs-border: #DFE3EB;
+  --hs-text: #111111; --hs-muted: #5F6B7A; --hs-ink: #000000;
+  --hs-yellow: #E6FF00; --hs-yellow-tenue: #F7FFB3; --hs-gull: #96A3B5;
+  --hs-red: #D92D20; --hs-red-bg: #FEF3F2;
+  --hs-shadow: 0 1px 3px rgba(0,0,0,.08);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body {
-  background: var(--paper); color: var(--ink);
-  font-family: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: var(--hs-bg); color: var(--hs-text);
+  font-family: 'Lexend', system-ui, sans-serif;
   font-size: 15px; line-height: 1.45; font-variant-numeric: tabular-nums;
 }
-a { color: var(--azul); }
-:focus-visible { outline: 2px solid var(--azul); outline-offset: 2px; }
-.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 20px 64px; }
+a { color: var(--hs-text); text-underline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--hs-ink); outline-offset: 2px; }
 
-/* Encabezado */
-header.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: baseline; justify-content: space-between; }
-h1 { font-stretch: 112%; font-weight: 750; font-size: 1.55rem; letter-spacing: -0.01em; margin: 0; }
-.meta-linea { color: var(--muted); font-size: 0.88rem; }
-.aviso { margin: 14px 0 0; padding: 10px 14px; border-left: 3px solid var(--sol); background: var(--panel); font-size: 0.9rem; }
-.controles { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 0.88rem; }
+/* Encabezado global */
+.global { position: sticky; top: 0; z-index: 10; background: var(--hs-card); border-bottom: 1px solid var(--hs-border); }
+.global-in { max-width: 1400px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.marca { font-weight: 700; font-size: 18px; color: var(--hs-ink); text-decoration: none; }
+.marca span { font-weight: 400; font-size: 13px; color: var(--hs-muted); margin-left: 8px; }
+
+.wrap { max-width: 1400px; margin: 0 auto; padding: 24px 16px 64px; }
+header.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; }
+h1 { font-weight: 600; font-size: 28px; line-height: 1.15; margin: 0; }
+.meta-linea { color: var(--hs-muted); font-size: 12px; margin-top: 4px; }
+.aviso { margin: 16px 0 0; padding: 8px 12px; border: 1px solid var(--hs-border); border-radius: 8px; background: var(--hs-card); font-size: 13px; display: flex; gap: 8px; align-items: center; }
+.aviso .badge-nuevo { background: var(--hs-yellow); color: var(--hs-ink); font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.aviso.error { border-color: var(--hs-red); background: var(--hs-red-bg); }
+
+/* Controles */
+.controles { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--hs-muted); }
+.controles label { display: inline-flex; align-items: center; gap: 6px; }
 select, input[type=email], button {
-  font: inherit; color: var(--ink); background: var(--panel);
-  border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px;
+  font: inherit; font-size: 13px; color: var(--hs-text); background: var(--hs-card);
+  border: 1px solid var(--hs-border); border-radius: 8px; padding: 6px 10px;
 }
-button { cursor: pointer; }
-button.primario { background: var(--azul); color: #fff; border-color: var(--azul); }
+button { cursor: pointer; transition: background-color .2s, color .2s; }
+button.primario { background: var(--hs-ink); color: #fff; border-color: var(--hs-ink); }
+.seg { display: inline-flex; border: 1px solid var(--hs-border); border-radius: 999px; overflow: hidden; background: var(--hs-card); }
+.seg button { border: 0; border-radius: 0; padding: 5px 12px; }
+.seg button[aria-pressed=true] { background: var(--hs-ink); color: #fff; }
 
-/* Meta del mes: el elemento protagonista */
-.meta { margin-top: 28px; padding: 24px 24px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+/* Meta del mes */
+.meta { margin-top: 20px; padding: 20px; background: var(--hs-card); border: 1px solid var(--hs-border); border-radius: 12px; box-shadow: var(--hs-shadow); }
 .meta-cifras { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-.cifra .n { font-stretch: 125%; font-weight: 800; font-size: clamp(2rem, 4.4vw, 3.3rem); line-height: 1; letter-spacing: -0.02em; }
-.cifra .l { font-weight: 600; margin-top: 6px; }
-.cifra .s { color: var(--muted); font-size: 0.85rem; }
-.cifra.goal .n { color: var(--sol); }
-.cifra.forecast .n { color: var(--azul); }
-.cifra.delta.neg .n { color: var(--bad); }
-.cifra.delta.pos .n { color: var(--ok); }
-.barra { position: relative; height: 22px; margin: 22px 0 6px; background: var(--paper); border-radius: 4px; overflow: visible; }
-.barra .fc { position: absolute; inset: 0 auto 0 0; background: repeating-linear-gradient(135deg, var(--azul) 0 6px, var(--azul-suave) 6px 10px); border-radius: 4px; }
-.barra .re { position: absolute; inset: 0 auto 0 0; background: var(--ink); border-radius: 4px 0 0 4px; }
-.barra .gl { position: absolute; top: -6px; bottom: -6px; width: 3px; background: var(--sol); }
-.barra-ejes { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.8rem; }
-.leyenda { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; font-size: 0.82rem; color: var(--muted); }
-.leyenda i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 6px; }
+.cifra { border-left: 1px solid var(--hs-border); padding-left: 12px; }
+.cifra:first-child { border-left: 0; padding-left: 0; }
+.cifra .l { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.cifra .n { font-weight: 600; font-size: 28px; line-height: 1.15; margin-top: 4px; }
+.cifra .s { color: var(--hs-muted); font-size: 12px; margin-top: 2px; }
+.cifra.delta.neg .n { color: var(--hs-red); }
+.mk { display: inline-block; width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.mk.goal { background: none; border-left: 2px solid var(--hs-ink); border-radius: 0; width: 6px; }
+.mk.fc { background: var(--hs-yellow); outline: 1px solid var(--hs-ink); outline-offset: -1px; }
+.mk.re { background: var(--hs-ink); }
+.barra { position: relative; height: 16px; margin: 20px 0 6px; background: var(--hs-bg); border: 1px solid var(--hs-border); border-radius: 8px; }
+.barra .fc { position: absolute; inset: 0 auto 0 0; background: var(--hs-yellow); border-radius: 7px; }
+.barra .re { position: absolute; inset: 0 auto 0 0; background: var(--hs-ink); border-radius: 7px 0 0 7px; }
+.barra .gl { position: absolute; top: -6px; bottom: -6px; width: 2px; background: var(--hs-ink); }
+.barra .gl::after { content: 'Goal'; position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 600; }
+.barra-ejes { display: flex; justify-content: space-between; color: var(--hs-muted); font-size: 12px; }
 
-/* Cadena de etapas */
-.cadena { margin-top: 18px; }
-.cadena-grid { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(64px, 1fr); gap: 6px; align-items: end; overflow-x: auto; padding-bottom: 4px; }
-.etapa { display: flex; flex-direction: column; justify-content: flex-end; min-height: 150px; }
-.etapa .col { background: var(--azul); border-radius: 3px 3px 0 0; min-height: 2px; }
-.etapa.inst .col { background: var(--ink); }
-.etapa .v { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; }
-.etapa .k { color: var(--muted); font-size: 0.78rem; }
-.etapa .e { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 0; font-stretch: 75%; font-weight: 600; font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Tablero de etapas */
+.cadena { margin-top: 24px; }
+.cadena-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 768px) { .cadena-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .cadena-grid { grid-template-columns: repeat(10, minmax(0, 1fr)); } }
+.etapa { display: flex; flex-direction: column; min-height: 190px; padding: 8px 10px 10px; background: var(--hs-card); border: 1px solid var(--hs-border); border-top: 3px solid transparent; border-radius: 8px; }
+.etapa.inst { border-top-color: var(--hs-ink); }
+.etapa .e { font-size: 13px; font-weight: 600; }
+.etapa .tag { font-size: 10px; font-weight: 600; color: var(--hs-muted); }
+.etapa .v { font-weight: 600; font-size: 20px; margin-top: 4px; }
+.etapa .k { color: var(--hs-muted); font-size: 12px; }
+.etapa .pista { flex: 1; display: flex; align-items: flex-end; margin-top: 8px; }
+.etapa .col { width: 100%; background: var(--hs-gull); border-radius: 4px 4px 0 0; min-height: 2px; }
+.etapa.inst .col { background: var(--hs-ink); }
 
 /* Pestañas */
-.tabs { display: flex; gap: 4px; margin-top: 36px; border-bottom: 1px solid var(--line); }
-.tabs button { border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: none; padding: 10px 14px; font-weight: 650; font-stretch: 105%; color: var(--muted); }
-.tabs button[aria-selected=true] { color: var(--ink); border-bottom-color: var(--azul); }
-section.panel { padding-top: 22px; }
+.tabs { display: flex; gap: 16px; margin-top: 32px; border-bottom: 1px solid var(--hs-border); }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 10px 2px; margin-bottom: -1px; font-size: 15px; font-weight: 500; color: var(--hs-muted); }
+.tabs button:hover { color: var(--hs-text); }
+.tabs button[aria-selected=true] { color: var(--hs-text); border-bottom-color: var(--hs-ink); font-weight: 600; }
+section.panel { padding-top: 20px; }
 section.panel[hidden] { display: none; }
-h2 { font-stretch: 108%; font-weight: 700; font-size: 1.15rem; margin: 30px 0 4px; }
+h2 { font-weight: 600; font-size: 18px; margin: 28px 0 4px; }
 h2:first-child { margin-top: 0; }
-.nota { color: var(--muted); font-size: 0.86rem; margin: 0 0 12px; max-width: 78ch; }
+.nota { color: var(--hs-muted); font-size: 13px; margin: 0 0 12px; max-width: 80ch; }
 
-.resumen { display: flex; flex-wrap: wrap; gap: 28px; margin: 4px 0 8px; }
-.resumen div b { display: block; font-stretch: 118%; font-weight: 750; font-size: 1.6rem; }
-.resumen div span { color: var(--muted); font-size: 0.85rem; }
+.resumen { display: flex; flex-wrap: wrap; gap: 8px 32px; margin: 0 0 8px; }
+.resumen div b { display: block; font-weight: 600; font-size: 24px; }
+.resumen div span { color: var(--hs-muted); font-size: 12px; }
 
 /* Tablas */
-.tabla { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
-table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
-th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
-th { font-stretch: 80%; font-weight: 650; color: var(--muted); background: var(--panel); position: sticky; top: 0; }
+.tabla { overflow-x: auto; background: var(--hs-card); border: 1px solid var(--hs-border); border-radius: 8px; box-shadow: var(--hs-shadow); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--hs-border); white-space: nowrap; }
+th { font-size: 12px; font-weight: 500; color: var(--hs-muted); background: var(--hs-card); position: sticky; top: 0; }
 th:first-child, td:first-child, td.izq, th.izq { text-align: left; }
 tr:last-child td { border-bottom: 0; }
-tfoot td { font-weight: 700; border-top: 1px solid var(--line); }
-td small { color: var(--muted); }
-.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.78rem; font-weight: 650; }
-.pill.bad { background: var(--bad-suave); color: var(--bad); }
-.pill.warn { background: var(--warn-suave); color: var(--warn); }
-.pill.ok { background: var(--ok-suave); color: var(--ok); }
-.pill.mute { background: var(--paper); color: var(--muted); }
-.up { color: var(--ok); } .down { color: var(--bad); }
-.supuesto { border-bottom: 1px dotted var(--muted); cursor: help; }
+tfoot td { font-weight: 600; border-top: 1px solid var(--hs-border); }
+td small { color: var(--hs-muted); font-size: 12px; }
+td:first-child small { display: block; }
+.dif { font-size: 12px; color: var(--hs-muted); margin-left: 4px; }
+
+/* Badges de estado: siempre con texto e icono, no solo color */
+.pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; border: 1px solid var(--hs-border); background: var(--hs-card); color: var(--hs-text); }
+.pill.bad { background: var(--hs-red-bg); color: var(--hs-red); border-color: var(--hs-red); }
+.pill.bad::before { content: '!'; display: inline-grid; place-items: center; width: 12px; height: 12px; border-radius: 50%; background: var(--hs-red); color: #fff; font-size: 9px; }
+.pill.warn { border-style: dashed; border-color: var(--hs-ink); }
+.pill.warn::before { content: '◐'; }
+.pill.ok::before { content: '✓'; }
+.pill.mute { color: var(--hs-muted); border-style: dashed; }
+.supuesto { border-bottom: 1px dotted var(--hs-muted); cursor: help; }
 
 /* Equipos */
-.equipos { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
-.equipo { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--ok); border-radius: 6px; padding: 14px 16px; }
-.equipo.warn { border-left-color: var(--warn); }
-.equipo.bad { border-left-color: var(--bad); }
-.equipo.mute { border-left-color: var(--line); }
-.equipo h3 { margin: 0; font-size: 1rem; font-weight: 700; display: flex; justify-content: space-between; gap: 8px; }
-.equipo .util { font-stretch: 120%; font-weight: 800; font-size: 1.8rem; line-height: 1.1; margin-top: 6px; }
-.equipo ul { margin: 8px 0 0; padding-left: 18px; font-size: 0.84rem; color: var(--muted); }
+.equipos { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 640px) { .equipos { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .equipos { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.equipo { background: var(--hs-card); border: 1px solid var(--hs-border); border-radius: 8px; padding: 12px 16px; box-shadow: var(--hs-shadow); }
+.equipo.bad { border-left: 4px solid var(--hs-red); }
+.equipo.warn { border-style: dashed; border-color: var(--hs-ink); }
+.equipo.mute { border-style: dashed; }
+.equipo h3 { margin: 0; font-size: 15px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.equipo .util { font-weight: 600; font-size: 24px; line-height: 1.2; margin-top: 4px; }
+.equipo .util.bad { color: var(--hs-red); }
+.equipo ul { margin: 8px 0 0; padding-left: 16px; font-size: 12px; color: var(--hs-muted); }
 .equipo svg { display: block; width: 100%; height: 44px; margin-top: 8px; }
 
 /* Acceso */
-.acceso { max-width: 420px; margin: 12vh auto 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 28px; }
-.acceso form { display: flex; gap: 8px; margin-top: 14px; }
+.acceso { max-width: 512px; margin: 12vh auto 0; background: var(--hs-card); border: 1px solid var(--hs-border); border-radius: 12px; padding: 24px; box-shadow: var(--hs-shadow); }
+.acceso h1 { font-size: 20px; }
+.acceso form { display: flex; gap: 8px; margin-top: 12px; }
 .acceso input { flex: 1; }
-.estado { color: var(--muted); font-size: 0.9rem; margin-top: 12px; }
-.error { color: var(--bad); }
+.estado { color: var(--hs-muted); font-size: 13px; margin-top: 12px; }
+.error { color: var(--hs-red); }
 
 @media (max-width: 720px) {
   .meta-cifras { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .wrap { padding: 18px 14px 48px; }
+  .cifra:nth-child(3) { border-left: 0; padding-left: 0; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .barra .fc, .barra .re { transition: width .6s ease-out; }
+  .barra .fc, .barra .re { transition: width .2s ease-out; }
+  .tf-fade { animation: tf-fade .2s ease-out; }
+  @keyframes tf-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 }
 </style>
 </head>
 <body>
+<div class="global"><div class="global-in"><a class="marca" href="./">Niko<span>Ticket System</span></a><div id="global-acciones"></div></div></div>
 <div class="wrap" id="app"><p class="estado">Cargando…</p></div>
 
 <script>
@@ -499,7 +527,7 @@ function datosEjemplo() {
 // ====================== Vista ======================
 const ESTADO = { raw: null, modelo: null, tab: 'flujo', unidad: 'sitios', horizonte: CFG.horizonteDias || 10, mes: isoDay(HOY).slice(0, 7), segmento: null, t0: null };
 
-function cifra(clase, n, l, s) { return `<div class="cifra ${clase}"><div class="n">${n}</div><div class="l">${l}</div><div class="s">${s}</div></div>`; }
+function cifra(clase, n, l, s, mk) { return `<div class="cifra ${clase}"><div class="l">${mk ? `<i class="mk ${mk}" aria-hidden="true"></i>` : ''}${l}</div><div class="n">${n}</div><div class="s">${s}</div></div>`; }
 function v(x) { return ESTADO.unidad === 'sitios' ? fmt.format(x.sitios) : fmt.format(x.kwp); }
 function u() { return ESTADO.unidad === 'sitios' ? 'sitios' : 'kWp'; }
 
@@ -511,9 +539,9 @@ function vistaMeta(M) {
   const [a, m] = ESTADO.mes.split('-').map(Number);
   return `<section class="meta" aria-label="Meta del mes">
     <div class="meta-cifras">
-      ${cifra('goal', v(M.goal), 'Company Goal', `Lo prometido para ${MESES[m - 1]} ${a}`)}
-      ${cifra('forecast', v(M.forecast), 'Forecast', `Lo que la capacidad actual alcanza a entregar, de ${v(M.plan)} comprometidos`)}
-      ${cifra('real', v(M.real), 'Real', 'Sitios que ya llegaron a instalación')}
+      ${cifra('goal', v(M.goal), 'Company Goal', `Lo prometido para ${MESES[m - 1]} ${a}`, 'goal')}
+      ${cifra('forecast', v(M.forecast), 'Forecast', `Lo que la capacidad actual alcanza a entregar, de ${v(M.plan)} comprometidos`, 'fc')}
+      ${cifra('real', v(M.real), 'Real', 'Sitios que ya llegaron a instalación', 're')}
       ${cifra('delta ' + (delta < 0 ? 'neg' : 'pos'), (delta > 0 ? '+' : '') + fmt.format(delta), 'Delta', `Forecast contra goal, en ${u()}`)}
     </div>
     <div class="barra" role="img" aria-label="Real ${v(M.real)}, forecast ${v(M.forecast)} y goal ${v(M.goal)} ${u()}">
@@ -522,11 +550,6 @@ function vistaMeta(M) {
       <div class="gl" style="left:${g / tope * 100}%"></div>
     </div>
     <div class="barra-ejes"><span>0</span><span>${fmt.format(tope)} ${u()}</span></div>
-    <div class="leyenda">
-      <span><i style="background:var(--ink)"></i>Real</span>
-      <span><i style="background:repeating-linear-gradient(135deg,var(--azul) 0 3px,var(--azul-suave) 3px 5px)"></i>Forecast</span>
-      <span><i style="background:var(--sol)"></i>Goal</span>
-    </div>
   </section>`;
 }
 
@@ -534,13 +557,14 @@ function vistaCadena(etapas) {
   const k = ESTADO.unidad;
   const max = Math.max(1, ...etapas.map(e => e[k]));
   return `<div class="cadena"><h2>Dónde están hoy los sitios</h2>
-    <p class="nota">Sitios y kWp en cada etapa del deal, de la foto más reciente. La última columna es la entrada a instalación.</p>
+    <p class="nota">Sitios y kWp en cada etapa del deal, de la foto más reciente. La columna con borde negro es la entrada a instalación.</p>
     <div class="cadena-grid">${etapas.map(e => `
       <div class="etapa ${e.es_instalado ? 'inst' : ''}" title="${esc(e.etiqueta)}: ${e.sitios} sitios, ${fmt1.format(e.kwp)} kWp">
+        <div class="e">${esc(e.etiqueta)}</div>
+        ${e.es_instalado ? '<div class="tag">Instalación</div>' : ''}
         <div class="v">${k === 'sitios' ? e.sitios : fmt.format(e.kwp)}</div>
         <div class="k">${k === 'sitios' ? fmt.format(e.kwp) + ' kWp' : e.sitios + ' sitios'}</div>
-        <div class="col" style="height:${Math.round(e[k] / max * 110)}px"></div>
-        <div class="e">${esc(e.etiqueta)}</div>
+        <div class="pista"><div class="col" style="height:${Math.round(e[k] / max * 90)}px"></div></div>
       </div>`).join('')}
     </div></div>`;
 }
@@ -558,7 +582,7 @@ function vistaFlujo(M) {
   const R = M.resumen, k = ESTADO.unidad;
   const sem = M.semanas;
   const etapas = M.porEtapa;
-  const delta = (a, b) => { const d = a - b; return d === 0 ? '' : ` <small class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${fmt.format(d)}</small>`; };
+  const delta = (a, b) => { const d = a - b; return d === 0 ? '' : `<span class="dif">${d > 0 ? '+' : '−'}${fmt.format(Math.abs(d))}</span>`; };
   const vencidos = M.abiertos.filter(t => t.estadoSla === 'vencido').sort((a, b) => (b.edad - b.sla) - (a.edad - a.sla)).slice(0, 25);
   const link = id => CFG.hubspotPortalId && !DEMO ? `<a href="https://app.hubspot.com/contacts/${CFG.hubspotPortalId}/record/0-5/${esc(id)}" target="_blank" rel="noopener">${esc(id)}</a>` : esc(id);
   return `
@@ -612,9 +636,9 @@ function sparkline(puntos, capDia) {
   const w = 300, h = 44, max = Math.max(1, ...puntos);
   const x = i => i / (puntos.length - 1) * w, y = vv => h - 4 - vv / max * (h - 10);
   const d = puntos.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p).toFixed(1)}`).join('');
-  const subeOBaja = puntos[puntos.length - 1] > puntos[0] ? 'var(--bad)' : 'var(--azul)';
+  const subeOBaja = puntos[puntos.length - 1] > puntos[0] ? 'var(--hs-red)' : 'var(--hs-ink)';
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Horas en fila proyectadas: de ${fmt.format(puntos[0])} a ${fmt.format(puntos[puntos.length - 1])}">
-    <line x1="0" x2="${w}" y1="${h - 4}" y2="${h - 4}" stroke="var(--line)"/>
+    <line x1="0" x2="${w}" y1="${h - 4}" y2="${h - 4}" stroke="var(--hs-border)"/>
     <path d="${d}" fill="none" stroke="${subeOBaja}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
 }
 
@@ -629,21 +653,21 @@ function vistaCapacidad(M) {
     <div class="equipos">${M.equipos.map(e => `
       <article class="equipo ${e.nivel}">
         <h3><span>${esc(e.nombre)}</span><span class="pill ${e.nivel}">${e.sinDatos ? 'Sin esfuerzo definido' : e.nivel === 'bad' ? 'Saturado' : e.nivel === 'warn' ? 'Al límite' : 'Con espacio'}</span></h3>
-        <div class="util">${e.sinDatos ? '—' : pct(e.util)}</div>
+        <div class="util ${e.nivel === 'bad' ? 'bad' : ''}">${e.sinDatos ? '—' : pct(e.util)}</div>
         <div class="nota" style="margin:0">${fmt.format(e.reqH)} h requeridas de ${fmt.format(e.dispH)} h disponibles · ${e.backlogN} abiertos</div>
         ${sparkline(e.proyeccion)}
         <div class="nota" style="margin:2px 0 0">${e.sinDatos ? 'Sin esfuerzo en el catálogo: no se puede proyectar' : e.diaVacio > 0 ? `La fila se vacía el ${isoDay(M.dias[e.diaVacio - 1])}` : e.backlogH === 0 ? 'Sin fila' : `Quedan ${fmt.format(e.proyeccion[e.proyeccion.length - 1])} h en fila al final del horizonte`}</div>
         ${e.alertas.length ? `<ul>${e.alertas.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
       </article>`).join('')}
     </div>
-    ${M.sinPersona.length ? `<p class="aviso">${M.sinPersona.length} tickets abiertos tienen un owner que no está en la tabla de personas, así que no cuentan en ninguna capacidad. Agrégalos en Supabase &gt; personas.</p>` : ''}
+    ${M.sinPersona.length ? `<p class="aviso error">${M.sinPersona.length} tickets abiertos tienen un owner que no está en la tabla de personas, así que no cuentan en ninguna capacidad. Agrégalos en Supabase &gt; personas.</p>` : ''}
 
     <h2>Por persona</h2>
     <div class="tabla"><table>
       <thead><tr><th>Persona</th><th class="izq">Equipo</th><th>Foco</th><th>Ausencias (h)</th><th>Disponibles (h)</th><th>Requeridas (h)</th><th>Utilización</th><th>Abiertos</th><th>Le caben</th><th>Días de cola</th><th>Días para vaciar</th></tr></thead>
       <tbody>${[...M.personas].sort((a, b) => (b.util ?? 0) - (a.util ?? 0)).map(p => `<tr>
         <td>${esc(p.nombre)}</td><td class="izq">${esc(p.equipo)}</td><td>${pct(p.foco)}</td>
-        <td>${p.ausenciasH ? `<span class="pill warn">${fmt.format(p.ausenciasH)}</span>` : 0}</td>
+        <td>${p.ausenciasH ? `<span class="pill" title="Horas fuera en el horizonte">${fmt.format(p.ausenciasH)} h fuera</span>` : 0}</td>
         <td>${fmt.format(p.dispH)}</td><td>${fmt.format(p.reqH)}</td>
         <td><span class="pill ${p.util == null || (p.backlogN && p.sinEsfuerzo === p.backlogN) ? 'mute' : p.util > 1 ? 'bad' : p.util > 0.85 ? 'warn' : 'ok'}">${p.backlogN && p.sinEsfuerzo === p.backlogN ? 'Sin esfuerzo' : pct(p.util)}</span></td>
         <td>${p.backlogN}${p.sinEsfuerzo ? ` <small title="sin esfuerzo en el catálogo">(${p.sinEsfuerzo} sin esfuerzo)</small>` : ''}</td>
@@ -664,6 +688,7 @@ function render() {
   const meses = []; const base = new Date(HOY);
   for (let i = -2; i <= 3; i++) { const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + i, 1)); meses.push(isoDay(d.getTime()).slice(0, 7)); }
   const app = document.getElementById('app');
+  document.getElementById('global-acciones').innerHTML = DEMO ? '' : '<button id="c-salir" type="button">Salir</button>';
   app.innerHTML = `
     <header class="top">
       <div><h1>Ticket System: capacidad y flujo</h1>
@@ -672,12 +697,11 @@ function render() {
         <label>Mes <select id="c-mes">${meses.map(m => { const [a, mm] = m.split('-'); return `<option value="${m}" ${m === ESTADO.mes ? 'selected' : ''}>${MESES[+mm - 1]} ${a}</option>`; }).join('')}</select></label>
         <label>Segmento <select id="c-seg">${segmentos.map(s => `<option ${s === ESTADO.segmento ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></label>
         <label>T0 <select id="c-t0">${raw.fechas.map(f => `<option ${f === raw.semanas[0] ? 'selected' : ''}>${f}</option>`).join('')}</select></label>
-        <label>Ver en <select id="c-uni"><option value="sitios" ${ESTADO.unidad === 'sitios' ? 'selected' : ''}>sitios</option><option value="kwp" ${ESTADO.unidad === 'kwp' ? 'selected' : ''}>kWp</option></select></label>
+        <span class="seg" role="group" aria-label="Unidad"><button type="button" data-uni="sitios" aria-pressed="${ESTADO.unidad === 'sitios'}">Sitios</button><button type="button" data-uni="kwp" aria-pressed="${ESTADO.unidad === 'kwp'}">kWp</button></span>
         <label>Horizonte <select id="c-hor">${[5, 10, 15, 20].map(n => `<option value="${n}" ${n === ESTADO.horizonte ? 'selected' : ''}>${n} días</option>`).join('')}</select></label>
-        ${DEMO ? '' : '<button id="c-salir" type="button">Salir</button>'}
       </div>
     </header>
-    ${DEMO ? '<p class="aviso">Datos de ejemplo. Llena config.js con tu proyecto de Supabase para ver los datos reales.</p>' : ''}
+    ${DEMO ? '<p class="aviso"><span class="badge-nuevo">Ejemplo</span>Estos son datos de ejemplo. Llena config.js con tu proyecto de Supabase para ver los datos reales.</p>' : ''}
     ${vistaMeta(M.metricas)}
     ${vistaCadena(M.porEtapa)}
     <div class="tabs" role="tablist">
@@ -690,7 +714,7 @@ function render() {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   on('c-mes', 'change', e => { ESTADO.mes = e.target.value; recalcular(); });
   on('c-seg', 'change', e => { ESTADO.segmento = e.target.value; recalcular(); });
-  on('c-uni', 'change', e => { ESTADO.unidad = e.target.value; render(); });
+  app.querySelectorAll('[data-uni]').forEach(b => b.addEventListener('click', () => { ESTADO.unidad = b.dataset.uni; render(); }));
   on('c-hor', 'change', e => { ESTADO.horizonte = +e.target.value; recalcular(); });
   on('c-t0', 'change', e => { ESTADO.t0 = e.target.value; cargar(); });
   on('t-flujo', 'click', () => { ESTADO.tab = 'flujo'; render(); });
