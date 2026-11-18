@@ -9,6 +9,9 @@ Dashboard de **flujo, SLA y capacidad** del Ticket System de Niko.
   Supabase). El dashboard manda `hd=niko.mx` y, al volver, cierra la sesión si el correo
   no es de `@niko.mx`; los datos ya los protege RLS por dominio. **No se usa SMTP**: se
   quitaron los enlaces de acceso por correo.
+  **Ya configurado** (18 nov 2026): proveedor Google activo, redirect URI
+  `https://tzpmtacrwacxleddijng.supabase.co/auth/v1/callback`, y la URL de Vercel en
+  *Site URL* y *Redirect URLs*.
 - Un workflow de **GitHub Actions** (`.github/workflows/sync.yml`, script `scripts/sync-hubspot.mjs`)
   toma la foto de HubSpot **dos veces al día** (7:00 y 13:00) y la escribe en Supabase
   con la service role key.
