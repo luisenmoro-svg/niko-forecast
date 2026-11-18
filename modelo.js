@@ -46,39 +46,58 @@
         if (r.modo !== 'cola') continue;
         if ((estado[r.id] || {}).sitios > 0) (colas[r.equipo] = colas[r.equipo] || []).push(r);
       }
-      const mueve = {};
+      const mueve = {}, porque = {}, inicio = {};
       for (const r of ritmos) {
         const st = estado[r.id];
-        if (!st || st.sitios <= 0) { mueve[r.id] = 0; continue; }
+        inicio[r.id] = st ? st.sitios : 0;
+        if (!st || st.sitios <= 0) { mueve[r.id] = 0; porque[r.id] = { modo: 'vacio' }; continue; }
         if (r.modo === 'proceso') {
           const dias = (aj.diasEtapa && aj.diasEtapa[r.cod]) || r.dias || 1;
-          mueve[r.id] = st.sitios * Math.min(1, 5 / dias);
+          const frac = Math.min(1, 5 / dias);
+          mueve[r.id] = st.sitios * frac;
+          porque[r.id] = { modo: 'proceso', dias: dias, fraccion: frac, nota: r.nota || '' };
           continue;
         }
         const esf = esfuerzoDe(r.ticket);
         // Sin esfuerzo no se inventa un ritmo: la cola queda detenida y se marca.
-        if (esf.h == null) { sinEsfuerzo.add(r.cod + ' · ' + r.ticket); mueve[r.id] = 0; continue; }
+        if (esf.h == null) {
+          sinEsfuerzo.add(r.cod + ' · ' + r.ticket);
+          mueve[r.id] = 0; porque[r.id] = { modo: 'sin-esfuerzo', ticket: r.ticket };
+          continue;
+        }
         const compiten = (colas[r.equipo] || [r]).length;
         const horas = (e.capSemana[r.equipo] || 0) / compiten;
-        mueve[r.id] = Math.min(st.sitios, horas / esf.h);
+        const caben = horas / esf.h;
+        mueve[r.id] = Math.min(st.sitios, caben);
+        porque[r.id] = { modo: 'cola', equipo: r.equipo, ticket: r.ticket, horas: horas,
+                         capEquipo: e.capSemana[r.equipo] || 0, compiten: compiten,
+                         esfuerzo: esf.h, fuente: esf.fuente, caben: caben,
+                         topado: caben > st.sitios };
         demandaEquipo[r.equipo] = demandaEquipo[r.equipo] || [];
         demandaEquipo[r.equipo][w - 1] = (demandaEquipo[r.equipo][w - 1] || 0) + st.sitios * esf.h;
       }
 
       // Mover, aplicando la conversión de cada etapa.
-      const entra = {};
-      let instalados = { sitios: 0, kwp: 0 };
+      const entra = {}, salio = {}, perdio = {};
+      let instalados = { sitios: 0, kwp: 0, deCod: null, deEtiqueta: null };
       ritmos.forEach(function (r, i) {
         const st = estado[r.id];
         if (!st) return;
         const n = Math.min(st.sitios, mueve[r.id] || 0);
-        if (n <= 0) return;
+        salio[r.id] = n;
+        if (n <= 0) { perdio[r.id] = 0; return; }
         const kps = st.sitios ? st.kwp / st.sitios : 0;
-        const pasan = n * (r.conversion == null ? 1 : r.conversion);
+        const conv = r.conversion == null ? 1 : r.conversion;
+        const pasan = n * conv;
+        perdio[r.id] = n - pasan;
         st.sitios -= n; st.kwp -= n * kps;
         const sig = ritmos[i + 1];
-        if (!sig) { instalados.sitios += pasan; instalados.kwp += pasan * kps; return; }
-        entra[sig.id] = entra[sig.id] || { sitios: 0, kwp: 0 };
+        if (!sig) {
+          instalados.sitios += pasan; instalados.kwp += pasan * kps;
+          instalados.deCod = r.cod; instalados.deEtiqueta = r.cod;
+          return;
+        }
+        entra[sig.id] = entra[sig.id] || { sitios: 0, kwp: 0, deCod: r.cod };
         entra[sig.id].sitios += pasan;
         entra[sig.id].kwp += pasan * kps;
       });
@@ -91,15 +110,28 @@
         estado[p].kwp += e.nuevos.sitios * (e.nuevos.kwpPorSitio || 0);
       }
 
-      const porEtapa = {};
+      const porEtapa = {}, traza = {};
       let ts = 0, tk = 0;
-      for (const r of ritmos) {
+      ritmos.forEach(function (r, i) {
         const st = estado[r.id];
         porEtapa[r.id] = { sitios: Math.round(st.sitios * 10) / 10, kwp: Math.round(st.kwp) };
+        const lleg = entra[r.id];
+        traza[r.id] = {
+          cod: r.cod, inicio: inicio[r.id],
+          llegaron: lleg ? lleg.sitios : 0,
+          deCod: lleg ? lleg.deCod : null,
+          salieron: salio[r.id] || 0,
+          porque: porque[r.id] || { modo: 'vacio' },
+          perdidos: perdio[r.id] || 0,
+          conversion: r.conversion == null ? 1 : r.conversion,
+          nuevos: (i === 0 && e.nuevos && e.nuevos.sitios > 0) ? e.nuevos.sitios : 0,
+          // Se redondea aquí para que el panel y la celda muestren exactamente lo mismo.
+          fin: Math.round(st.sitios * 10) / 10, kwpFin: st.kwp,
+        };
         ts += st.sitios; tk += st.kwp;
-      }
+      });
       salida.push({
-        etiqueta: w + 'S', pronostico: true, porEtapa: porEtapa,
+        etiqueta: w + 'S', pronostico: true, porEtapa: porEtapa, traza: traza,
         instalados: { sitios: Math.round(instalados.sitios * 10) / 10, kwp: Math.round(instalados.kwp) },
         sitios: Math.round(ts), kwp: Math.round(tk),
       });

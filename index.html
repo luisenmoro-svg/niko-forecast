@@ -127,6 +127,8 @@ th .info { margin-left: 2px; }
 .pd-mal { display: block; margin-top: 4px; color: var(--hs-red); font-weight: 600; }
 .pd-ord { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; cursor: pointer; color: inherit; }
 .panel-det tr.marca { background: var(--hs-yellow-tenue, #fbfde0); }
+ol.comoPron { margin: 0 0 8px; padding-left: 18px; font-size: 12px; color: var(--hs-text); }
+ol.comoPron li { margin-bottom: 3px; }
 details.cuello { border: 1px solid var(--hs-border); border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
 details.cuello > summary { cursor: pointer; }
 .sim { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; border: 1px dashed var(--hs-border); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
@@ -846,6 +848,17 @@ function num_delta(texto, titulo, d) {
   DRILL.set(id, { titulo, tipo: 'delta', desglose: d, registros: d.fuera, mostrado: texto, calc: null });
   return `<button class="num" type="button" data-d="${id}">${texto}</button>`;
 }
+// El desglose de una celda de pronóstico: de dónde sale ese número.
+function numPron(texto, titulo, t, etiqueta) {
+  const id = 'd' + (++drillSeq);
+  DRILL.set(id, { titulo, tipo: 'desglose', traza: t, etapaEtiqueta: etiqueta, mostrado: texto, registros: [] });
+  return `<button class="num" type="button" data-d="${id}">${texto}</button>`;
+}
+function numInst(texto, titulo, inst, etiqueta) {
+  const id = 'd' + (++drillSeq);
+  DRILL.set(id, { titulo, tipo: 'instalados', inst, etapaEtiqueta: etiqueta, mostrado: texto, registros: [] });
+  return `<button class="num" type="button" data-d="${id}">${texto}</button>`;
+}
 const PANEL = { id: null, orden: null, asc: true, origen: null };
 function abrirDetalle(id, boton) {
   const d = DRILL.get(id);
@@ -887,6 +900,41 @@ function pintarDetalle() {
     const cuadra = !Number.isFinite(mostrado) || d.registros.length === mostrado;
     document.getElementById('pd-n').innerHTML = `${fmt.format(d.registros.length)} ${d.registros.length === 1 ? 'registro' : 'registros'}`
       + (cuadra ? '' : `<span class="pd-mal">No cuadra: la cifra dice ${esc(d.mostrado)} y la lista tiene ${fmt.format(d.registros.length)}</span>`);
+  }
+  if (d.tipo === 'desglose') {
+    const t = d.traza, p = t.porque || {};
+    const n1 = x => fmt1.format(x);
+    const cuadra = Math.abs((t.inicio + t.llegaron - t.salieron + t.nuevos) - t.fin) < 0.05;
+    const motivo = p.modo === 'cola'
+      ? `${esc(p.equipo)} tiene ${n1(p.horas)} h asignadas a esta etapa ${p.compiten > 1 ? `(su capacidad de ${n1(p.capEquipo)} h se reparte entre ${p.compiten} filas) ` : ''}÷ ${n1(p.esfuerzo)} h por «${esc(p.ticket)}» = <b>${n1(p.caben)} sitios</b> que alcanza a cerrar.${p.topado ? ` Solo había ${n1(t.inicio + t.llegaron)}, así que salen todos.` : ''} <span class="supuesto">esfuerzo ${esc(p.fuente)}</span>`
+      : p.modo === 'proceso'
+        ? `Según proceso, ${n1(p.dias)} días hábiles${p.nota ? ` (${esc(p.nota)})` : ''}: en una semana de 5 días sale <b>${pct(p.fraccion)}</b> de lo que hay. <span class="supuesto">días del Reverse Eng Model</span>`
+        : p.modo === 'sin-esfuerzo'
+          ? `<span class="pd-mal">«${esc(p.ticket)}» no tiene esfuerzo en el catálogo, así que esta etapa queda detenida.</span>`
+          : 'No había sitios en la etapa.';
+    document.getElementById('pd-n').innerHTML = `Semana a semana, así se arma el número${cuadra ? '' : '<span class="pd-mal">Las cuentas no cuadran con la celda</span>'}`;
+    document.getElementById('pd-c').innerHTML = `<div class="tabla"><table>
+      <tbody>
+        <tr><td class="izq">Al empezar la semana</td><td>${n1(t.inicio)}</td><td class="izq">sitios en ${esc(d.etapaEtiqueta)}</td></tr>
+        <tr><td class="izq">+ Llegaron</td><td>${n1(t.llegaron)}</td><td class="izq">${t.deCod ? `de ${esc(t.deCod)}, ya descontada su pérdida` : '—'}</td></tr>
+        ${t.nuevos ? `<tr><td class="izq">+ Entraron nuevos</td><td>${n1(t.nuevos)}</td><td class="izq">sitios que entran a la cadena esta semana</td></tr>` : ''}
+        <tr><td class="izq">− Salieron</td><td>${n1(t.salieron)}</td><td class="izq">${motivo}</td></tr>
+        <tr class="marca"><td class="izq"><b>Al terminar la semana</b></td><td><b>${n1(t.fin)}</b></td><td class="izq">${fmt.format(Math.round(t.kwpFin))} kWp</td></tr>
+      </tbody></table></div>
+      ${t.salieron > 0 && t.conversion < 1 ? `<p class="nota">De los ${n1(t.salieron)} que salieron, <b>${n1(t.perdidos)} se pierden</b> en el camino: la tasa de conversión de esta etapa es ${pct(t.conversion)}, del Reverse Eng Model. A la siguiente llegan ${n1(t.salieron - t.perdidos)}.</p>` : ''}`;
+    return;
+  }
+  if (d.tipo === 'instalados') {
+    const i = d.inst;
+    document.getElementById('pd-n').textContent = 'Sitios que llegan a instalación esa semana';
+    document.getElementById('pd-c').innerHTML = `<div class="tabla"><table>
+      <tbody>
+        <tr><td class="izq">Vinieron de</td><td class="izq">${esc(i.deEtiqueta || '—')}, la última etapa de la cadena</td></tr>
+        <tr class="marca"><td class="izq"><b>Sitios</b></td><td><b>${fmt1.format(i.sitios)}</b></td></tr>
+        <tr><td class="izq">kWp</td><td>${fmt.format(i.kwp)}</td></tr>
+      </tbody></table></div>
+      <p class="nota">Son los que salen de la última etapa ya descontada su tasa de conversión. Es un pronóstico, no una fecha comprometida.</p>`;
+    return;
   }
   if (d.tipo === 'delta') {
     const g = d.desglose;
@@ -1068,6 +1116,20 @@ function pillSla(t) {
 const slaTxt = d => d == null ? '—' : d < 1 ? `${fmt1.format(d * 8)} h` : `${fmt1.format(d)} d`;
 const marcaSupuesto = (txt, firme) => firme ? txt : `<span class="supuesto" title="Valor del catálogo aún no firmado">${txt}</span>`;
 
+// Explicación general del pronóstico, en el ⓘ de cada semana futura.
+function infoSemana(P) {
+  const ritmo = P.modoEntrada === 'meta'
+    ? `entran ${fmt1.format(P.eMeta.sitios)} sitios por semana, los que pediría la meta`
+    : P.modoEntrada === 'sin-historia'
+      ? 'no se puede medir el ritmo de entrada, se usa el de la meta'
+      : `entran ${fmt1.format(P.eReal.sitios)} sitios por semana, el ritmo real medido`;
+  const esc2 = simActivo() ? ' Escenario del simulador: valores cambiados a mano.' : ' Escenario: datos reales, sin cambios del simulador.';
+  return info_texto(`Pronóstico: parte de la semana anterior; cada etapa suelta los sitios que su equipo alcanza a cerrar (o los que marca el proceso), se aplican las pérdidas por etapa y se suman los sitios nuevos. Ritmo de entrada: ${ritmo}.${esc2} Clic en cualquier número para ver su cuenta.`);
+}
+function info_texto(t) {
+  return ` <button class="info" type="button" aria-label="Cómo se calcula" data-def="${esc(t)}">i</button>`;
+}
+
 // Cada etapa dice de dónde sale su ritmo en el pronóstico.
 function ritmoInfo(etapaId) {
   const r = (CFG.ritmoEtapas || []).find(x => x.id === etapaId);
@@ -1117,11 +1179,37 @@ function vistaFlujo(M, raw) {
       + (enPost.length ? ` · post-instalación ${fmt.format(tPost.s)} sitios · ${fmt.format(tPost.k)} kWp` : ''),
       fH, vistaCadena(etapas, sem))}
 
+    ${seccion('comoPron', 'Cómo se calcula el pronóstico', null,
+      `${P.semanas.length} semanas · ${P.modoEntrada === 'real' ? 'ritmo real' : P.modoEntrada === 'meta' ? 'ritmo de la meta' : 'sin historia'}`,
+      'Pronóstico preliminar · no usa los tiempos por etapa de HubSpot',
+      `<ol class="comoPron">
+        <li>Se parte de la foto más reciente: los sitios que hay hoy en cada etapa.</li>
+        <li>Cada semana, una etapa suelta los sitios que su equipo alcanza a cerrar: las horas que tiene entre lo que cuesta su ticket. Si dos filas compiten por el mismo equipo, se reparten sus horas.</li>
+        <li>Las etapas que no dependen de un ticket (los lotes de 2.01, la espera de cuadrilla en 2.14) sueltan la parte que marcan los días del modelo de Paola.</li>
+        <li>De los que salen, una parte se pierde: cada etapa tiene su tasa de conversión. El resto llega a la siguiente.</li>
+        <li>Al final entran los sitios nuevos de la semana, y lo que sale de la última etapa son las instalaciones.</li>
+      </ol>
+      <p class="nota"><b>Ritmo de entrada:</b> ${P.modoEntrada === 'meta'
+          ? `${fmt1.format(P.eMeta.sitios)} sitios por semana, los que haría falta meter para la meta.`
+          : P.modoEntrada === 'sin-historia'
+            ? 'no medible todavía: hacen falta dos fotos separadas por una semana. Se usa el de la meta.'
+            : `${fmt1.format(P.eReal.sitios)} sitios por semana, medidos entre las últimas ${P.eReal.intervalos} fotos.`}</p>
+      <h3 style="font-size:13px;margin:10px 0 4px">Lo que el pronóstico supone</h3>
+      <ul class="nota" style="margin:0;padding-left:18px">
+        <li>Qué ticket es el que manda en cada etapa.</li>
+        <li>Que las etapas sin ticket tardan los días del Reverse Eng Model.</li>
+        <li>Que las tasas de conversión del modelo son las reales (hoy dan ${pct(P.eMeta.conv)} de punta a punta).</li>
+        <li>Que dos filas que compiten por un equipo se reparten su tiempo por igual.</li>
+        <li>Que el esfuerzo medido vale para adelante: sale de 4 semanas de cierres.</li>
+        <li>Que no cambian ni el equipo ni el proceso durante las ${P.semanas.length} semanas.</li>
+      </ul>
+      ${P.sinEsfuerzo.length ? `<p class="aviso error">Estas filas no se pueden proyectar porque su ticket no tiene esfuerzo en el catálogo: ${P.sinEsfuerzo.map(esc).join(', ')}.</p>` : ''}`)}
+
     ${seccion('t0', 'Qué cambió desde T0', 'desdeT0',
       `${sem.length} fotos · total ${fmt.format(sem[sem.length - 1]?.sitios || 0)} sitios${sem.length > 1 ? ` (${(sem[sem.length - 1].sitios - sem[0].sitios) >= 0 ? '+' : '−'}${fmt.format(Math.abs(sem[sem.length - 1].sitios - sem[0].sitios))} desde T0)` : ''}`,
       fH, `<div class="tabla"><table class="t0">
       <thead>
-        <tr><th rowspan="2">Etapa</th>${sem.map(s => `<th colspan="2" class="par" title="${s.fecha}">${s.etiqueta} <small>${s.fecha.slice(5)}</small></th>`).join('')}${P.semanas.map(f => `<th colspan="2" class="par fut">${f.etiqueta} <small>pronóstico</small></th>`).join('')}</tr>
+        <tr><th rowspan="2">Etapa</th>${sem.map(s => `<th colspan="2" class="par" title="${s.fecha}">${s.etiqueta} <small>${s.fecha.slice(5)}</small></th>`).join('')}${P.semanas.map(f => `<th colspan="2" class="par fut">${f.etiqueta} <small>pronóstico</small>${infoSemana(P)}</th>`).join('')}</tr>
         <tr>${sem.map(() => '<th class="sub par">Sitios</th><th class="sub">kWp</th>').join('')}${P.semanas.map(() => '<th class="sub par fut">Sitios</th><th class="sub fut">kWp</th>').join('')}</tr>
       </thead>
       <tbody>${etapas.map(e => `<tr><td>${esc(e.etiqueta)}${ritmoInfo(e.etapa_id)}</td>${sem.map((s, i) => {
@@ -1130,11 +1218,12 @@ function vistaFlujo(M, raw) {
         const pr = prevision(s.fecha, e.etapa_id);
         return `<td class="par">${num(fmt.format(x.sitios), `${e.etiqueta} · ${s.etiqueta} ${s.fecha}`, ds, 'sitios')}${i ? delta(x.sitios, x0.sitios) : ''}${pr ? `<span class="vspron" title="Se había pronosticado ${fmt1.format(pr.sitios)}">pron. ${fmt1.format(pr.sitios)}</span>` : ''}</td><td>${num(fmt.format(x.kwp), `${e.etiqueta} · ${s.etiqueta} ${s.fecha} · kWp`, ds, 'sitios', { explica: `Suma de kWp de ${fmt.format(ds.length)} sitios en ${e.etiqueta} el ${s.fecha}: ${fmt1.format(x.kwp)} kWp`, ordenar: 'kwp' })}${i ? delta(x.kwp, x0.kwp) : ''}</td>`;
       }).join('')}${P.semanas.map(f => { const x = f.porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 };
-        return `<td class="par fut">${fmt.format(x.sitios)}</td><td class="fut">${fmt.format(x.kwp)}</td>`; }).join('')}</tr>`).join('')}</tbody>
-      <tfoot><tr><td>Llegan a instalación</td>${sem.map(() => '<td class="par"></td><td></td>').join('')}${P.semanas.map(f => `<td class="par fut">${fmt1.format(f.instalados.sitios)}</td><td class="fut">${fmt.format(f.instalados.kwp)}</td>`).join('')}</tr>
+        const t = f.traza && f.traza[e.etapa_id];
+        return `<td class="par fut">${t ? numPron(fmt1.format(x.sitios), `${e.etiqueta} · ${f.etiqueta} (pronóstico)`, t, e.etiqueta) : fmt1.format(x.sitios)}</td><td class="fut">${fmt.format(x.kwp)}</td>`; }).join('')}</tr>`).join('')}</tbody>
+      <tfoot><tr><td>Llegan a instalación</td>${sem.map(() => '<td class="par"></td><td></td>').join('')}${P.semanas.map(f => `<td class="par fut">${f.instalados.sitios > 0 ? numInst(fmt1.format(f.instalados.sitios), `Llegan a instalación · ${f.etiqueta}`, f.instalados) : '0'}</td><td class="fut">${fmt.format(f.instalados.kwp)}</td>`).join('')}</tr>
       <tr><td>Total</td>${sem.map((s, i) => `
         <td class="par">${fmt.format(s.sitios)}${i ? delta(s.sitios, sem[0].sitios) : ''}</td>
-        <td>${fmt.format(s.kwp)}${i ? delta(s.kwp, sem[0].kwp) : ''}</td>`).join('')}${P.semanas.map(f => `<td class="par fut">${fmt.format(f.sitios)}</td><td class="fut">${fmt.format(f.kwp)}</td>`).join('')}</tr></tfoot>
+        <td>${fmt.format(s.kwp)}${i ? delta(s.kwp, sem[0].kwp) : ''}</td>`).join('')}${P.semanas.map(f => `<td class="par fut">${fmt1.format(f.sitios)}</td><td class="fut">${fmt.format(f.kwp)}</td>`).join('')}</tr></tfoot>
     </table></div>`)}
 
     ${seccion('tipos', 'Volumen y SLA por tipo de ticket', null,

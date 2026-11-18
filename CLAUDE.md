@@ -184,6 +184,11 @@ Aplican a toda vista nueva, no solo a las existentes.
 - En `demanda_historica`, `pipeline` y `resolucion` son parte de la llave primaria y van
   con `''`, **nunca con `null`**: Postgres no acepta `coalesce` en una primary key y una
   columna nula no sirve como parte de la llave.
+- **Cada número del pronóstico explica su cuenta**, igual que los reales. `modelo.js`
+  guarda una `traza` por etapa y semana (inicio, llegaron, salieron con su porqué,
+  perdidos por conversión, fin) y el panel la muestra. La regla: **lo que muestra el panel
+  tiene que cuadrar exactamente con la celda**, así que el redondeo se hace en el modelo
+  y las dos partes usan el mismo formato de un decimal.
 - El simulador cambia solo `ESTADO.sim`; nunca toca los datos.
 
 ## Reglas de trabajo
