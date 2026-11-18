@@ -89,6 +89,11 @@ button.primario { background: var(--hs-ink); color: #fff; border-color: var(--hs
 .etapa .k { color: var(--hs-muted); font-size: 12px; }
 .etapa .pista { flex: 1; display: flex; align-items: flex-end; margin-top: 8px; }
 .etapa .col { width: 100%; background: var(--hs-gull); border-radius: 4px 4px 0 0; min-height: 2px; }
+.fuera-flujo { margin-top: 12px; padding: 10px 10px 2px; border: 1px dashed var(--hs-border); border-radius: 8px; }
+.fuera-flujo .nota { margin: 0 0 8px; }
+.fuera-flujo .etapa { min-height: 120px; }
+details.aviso.fuera > summary { cursor: pointer; font-weight: 600; }
+details.aviso.fuera .tabla { margin-top: 10px; }
 .etapa.inst .col { background: var(--hs-ink); }
 
 /* Pestañas */
@@ -239,7 +244,21 @@ function construirModelo(raw, opciones) {
     t.persona = personas[t.owner_id] || null;
     return t;
   });
-  const abiertos = tickets.filter(t => t.abierto);
+  // Etapas inactivas (Inviable, Dormant, Churned): ni sus deals ni sus tickets cuentan.
+  const etapaPorId = Object.fromEntries(raw.etapas.map(e => [e.etapa_id, e]));
+  const inactiva = id => !!(etapaPorId[id] && etapaPorId[id].es_inactivo);
+  const etapaDeDeal = Object.fromEntries(raw.deals.map(d => [d.deal_id, d.etapa_id]));
+  // Solo si TODOS sus deals estan en etapa inactiva: un ticket compartido sigue contando.
+  const soloDealsInactivos = t => (t.deal_ids || []).length > 0
+    && t.deal_ids.every(id => inactiva(etapaDeDeal[id]));
+
+  const abiertosTodos = tickets.filter(t => t.abierto);
+  const ticketsInactivos = abiertosTodos.filter(soloDealsInactivos).map(t => ({
+    ...t,
+    etapaDeal: (t.deal_ids || []).map(id => (etapaPorId[etapaDeDeal[id]] || {}).etiqueta)
+      .filter(Boolean).join(', '),
+  }));
+  const abiertos = abiertosTodos.filter(t => !soloDealsInactivos(t));
 
   // --- Capacidad por persona en el horizonte
   const dias = siguientesHabiles(HOY, horizonte);
@@ -300,9 +319,6 @@ function construirModelo(raw, opciones) {
   const sinPersona = abiertos.filter(t => !t.persona);
 
   // --- Etapas y deals
-  // Las etapas marcadas es_inactivo (Inviable, Dormant, Churned) no cuentan en ningún lado.
-  const etapaPorId = Object.fromEntries(raw.etapas.map(e => [e.etapa_id, e]));
-  const inactiva = id => !!(etapaPorId[id] && etapaPorId[id].es_inactivo);
   const etapas = raw.etapas.filter(e => (!segmento || e.pipeline === segmento) && !e.es_inactivo).sort((a, b) => a.orden - b.orden);
   const deals = raw.deals.filter(d => (!segmento || d.segmento === segmento) && !inactiva(d.etapa_id));
   const esInstalado = d => !!(etapaPorId[d.etapa_id] && etapaPorId[d.etapa_id].es_instalado);
@@ -378,7 +394,7 @@ function construirModelo(raw, opciones) {
 
   const cerrados28 = tickets.filter(t => t.cerrado28 && t.sla != null);
   return {
-    tickets, abiertos, personas: Object.values(personas), equipos, sinPersona, dias,
+    tickets, abiertos, personas: Object.values(personas), equipos, sinPersona, ticketsInactivos, dias,
     porEtapa, semanas, metricas, porTipo,
     resumen: {
       abiertos: abiertos.length,
@@ -556,18 +572,29 @@ function vistaMeta(M) {
 
 function vistaCadena(etapas) {
   const k = ESTADO.unidad;
-  const max = Math.max(1, ...etapas.map(e => e[k]));
-  return `<div class="cadena"><h2>Dónde están hoy los sitios</h2>
-    <p class="nota">Sitios y kWp en cada etapa del deal, de la foto más reciente. La columna con borde negro es la entrada a instalación.</p>
-    <div class="cadena-grid">${etapas.map(e => `
+  // Las etapas de post-instalación salen de config.js: acumulan histórico y, en la
+  // misma escala, aplastan la cadena. Se muestran aparte, como ruta fuera del flujo.
+  const post = new Set(CFG.etapasPostInstalacion || []);
+  const cadena = etapas.filter(e => !post.has(e.etapa_id));
+  const fuera = etapas.filter(e => post.has(e.etapa_id));
+  const columna = (e, maximo, alto) => `
       <div class="etapa ${e.es_instalado ? 'inst' : ''}" title="${esc(e.etiqueta)}: ${e.sitios} sitios, ${fmt1.format(e.kwp)} kWp">
         <div class="e">${esc(e.etiqueta)}</div>
         ${e.es_instalado ? '<div class="tag">Instalación</div>' : ''}
         <div class="v">${k === 'sitios' ? e.sitios : fmt.format(e.kwp)}</div>
         <div class="k">${k === 'sitios' ? fmt.format(e.kwp) + ' kWp' : e.sitios + ' sitios'}</div>
-        <div class="pista"><div class="col" style="height:${Math.round(e[k] / max * 90)}px"></div></div>
-      </div>`).join('')}
-    </div></div>`;
+        <div class="pista"><div class="col" style="height:${Math.round(e[k] / maximo * alto)}px"></div></div>
+      </div>`;
+  const maxCadena = Math.max(1, ...cadena.map(e => e[k]));
+  const maxFuera = Math.max(1, ...fuera.map(e => e[k]));
+  return `<div class="cadena"><h2>Dónde están hoy los sitios</h2>
+    <p class="nota">Sitios y kWp en cada etapa del deal, de la foto más reciente. La columna con borde negro es la entrada a instalación.</p>
+    <div class="cadena-grid">${cadena.map(e => columna(e, maxCadena, 90)).join('')}</div>
+    ${fuera.length ? `<div class="fuera-flujo">
+      <p class="nota">Post-instalación: ya instalados, con su propia escala. Cuentan en Real, no en la cadena.</p>
+      <div class="cadena-grid">${fuera.map(e => columna(e, maxFuera, 40)).join('')}</div>
+    </div>` : ''}
+  </div>`;
 }
 
 function pillSla(t) {
@@ -662,6 +689,17 @@ function vistaCapacidad(M) {
       </article>`).join('')}
     </div>
     ${M.sinPersona.length ? `<p class="aviso error">${M.sinPersona.length} tickets abiertos tienen un owner que no está en la tabla de personas, así que no cuentan en ninguna capacidad. Agrégalos en Supabase &gt; personas.</p>` : ''}
+    ${M.ticketsInactivos.length ? `<details class="aviso fuera">
+      <summary>${M.ticketsInactivos.length} tickets abiertos cuelgan de deals en etapa inactiva. No cuentan en la capacidad: conviene cerrarlos.</summary>
+      <div class="tabla"><table>
+        <thead><tr><th class="izq">Ticket</th><th class="izq">Tipo</th><th class="izq">Owner</th><th class="izq">Etapa del deal</th></tr></thead>
+        <tbody>${M.ticketsInactivos.map(t => `<tr>
+          <td class="izq">${esc(t.asunto || t.ticket_id)}</td>
+          <td class="izq">${esc(t.tipo || '—')}</td>
+          <td class="izq">${esc(t.persona ? t.persona.nombre : (t.owner_id || 'sin owner'))}</td>
+          <td class="izq">${esc(t.etapaDeal || '—')}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </details>` : ''}
 
     <h2>Por persona</h2>
     <div class="tabla"><table>

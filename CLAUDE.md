@@ -19,7 +19,7 @@ Dashboard de **flujo, SLA y capacidad** del Ticket System de Niko.
 | Archivo | Para qué |
 |---|---|
 | `index.html` | Todo el dashboard: fórmulas, vistas y estilos |
-| `config.js` | Configuración pública (URL + anon key, dominio, meta por defecto) |
+| `config.js` | Configuración pública (URL + anon key, dominio, meta por defecto, `etapasPostInstalacion`) |
 | `supabase/schema.sql` | Esquema completo + RLS + datos iniciales |
 | `scripts/sync-hubspot.mjs` | Sincronización HubSpot → Supabase |
 | `.github/workflows/sync.yml` | Agenda de la sincronización |
@@ -36,6 +36,12 @@ Escritas por el script: `snapshots`, `deals_snapshot`, `tickets_snapshot`, `etap
   `sla_dias` en días hábiles (**1 h = 0.125**, **1 día = 1**, jornada de 8 h).
   `estado` ∈ `firme` | `supuesto` | `por_definir`.
 - `personas`: la llave primaria `owner_id` es el **`hubspot_owner_id`**.
+- `etapas_deal` tiene dos banderas manuales que el sync **no pisa** (su upsert solo manda
+  `etapa_id`, `etiqueta`, `pipeline`, `orden`): `es_instalado` (cuenta en Real) y
+  `es_inactivo` (Inviable, Dormant, Churned: no cuentan en la cadena, el T0,
+  goal/forecast/real, ni en capacidad; sus tickets salen listados para limpiarse).
+- `config.js > etapasPostInstalacion` lista las etapas que se grafican aparte, en la zona
+  punteada «post-instalación», para que su histórico no aplaste la cadena.
 - `segmento` debe ser **idéntico a la etiqueta** del pipeline de deal en HubSpot:
   el script escribe en `deals_snapshot.segmento` el label del pipeline
   (`dealPipeLabel[...]`), no un nombre corto. Los tres que se sincronizan son

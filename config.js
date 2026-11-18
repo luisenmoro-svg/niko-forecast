@@ -8,4 +8,7 @@ window.NIKO_CONFIG = {
   hubspotPortalId: '43656105',
   metaPorDefecto: { sitios: 80, kwp: 1200 },
   horizonteDias: 10,          // días hábiles del pronóstico de capacidad
+  // Etapas de post-instalación: se grafican aparte para que no aplasten la cadena.
+  // Siguen contando en Real. Hoy: 2.21 Recently Installed y 2.23 O&M - Activo.
+  etapasPostInstalacion: ['1109385340', '1109385341'],
 };
