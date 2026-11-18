@@ -102,6 +102,11 @@ Aplican a toda vista nueva, no solo a las existentes.
 3. **Fuente y actualización.** Cada sección dice de dónde salen sus datos y cuándo se
    actualizaron, en una línea pequeña (`.fuente`). HubSpot usa `snapshots.creado` en
    hora CDMX; catálogo, personas y metas usan su columna `actualizado_en`.
+   **Ya en la base** (18 nov 2026): la columna existe en las tres tablas (verificado
+   contra la API), con fecha de carga 2026-11-17 12:00 CDMX en `catalogo` y `personas`,
+   y un trigger `set_actualizado_en` en las tres que la mueve en cada edición. `metas`
+   no se rellenó a mano: sus filas traen el momento del `alter table` hasta que se
+   editen.
 4. **Todo lo de HubSpot es un vínculo.** Tickets a `record/0-5/{id}` y deals o sitios a
    `record/0-3/{id}`, portal de `config.js`, en pestaña nueva. Helpers `hsTicket()` y
    `hsDeal()`. Aplica a todas las tablas y listas.
