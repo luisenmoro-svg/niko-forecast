@@ -175,6 +175,9 @@ Aplican a toda vista nueva, no solo a las existentes.
 - `pronosticos` y `demanda_historica` ya existen en Supabase (18 nov 2026). Las fotos de
   Devin se importan con `scripts/importar-devin.mjs`: **no traen deals**, solo `tipos_30d`,
   un agregado de 30 días por tipo de ticket.
+- En `demanda_historica`, `pipeline` y `resolucion` son parte de la llave primaria y van
+  con `''`, **nunca con `null`**: Postgres no acepta `coalesce` en una primary key y una
+  columna nula no sirve como parte de la llave.
 - El simulador cambia solo `ESTADO.sim`; nunca toca los datos.
 
 ## Reglas de trabajo

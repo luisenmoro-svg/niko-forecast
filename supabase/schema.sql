@@ -123,14 +123,16 @@ create index if not exists pronosticos_semana on pronosticos (semana_fecha);
 -- ---------- Historial de demanda (fotos de Devin) ----------
 -- Un renglón por foto, tipo de ticket y owner. Sirve para calibrar esfuerzo y ritmo
 -- de entrada hacia atrás en el tiempo, antes de que existiera el dashboard.
+-- pipeline y resolucion van con '' y no null: Postgres no acepta coalesce en una
+-- primary key, y una columna nula tampoco sirve como parte de la llave.
 create table if not exists demanda_historica (
   fecha      date not null,
   tipo       text not null,
   owner      text not null default '(todos)',
   tickets    integer not null default 0,
-  pipeline   text,
-  resolucion text,
-  primary key (fecha, tipo, owner, coalesce(pipeline,''), coalesce(resolucion,''))
+  pipeline   text not null default '',
+  resolucion text not null default '',
+  primary key (fecha, tipo, owner, pipeline, resolucion)
 );
 create index if not exists demanda_historica_tipo on demanda_historica (tipo, fecha);
 

@@ -20,10 +20,11 @@ for (const ruta of archivos) {
   if (!j.tipos_30d) { console.error(`${ruta}: sin tipos_30d, se omite`); continue; }
   const fecha = j.fecha;
   for (const [tipo, d] of Object.entries(j.tipos_30d)) {
-    const pipeline = Object.keys(d.pipelines || {})[0] || null;
-    filas.push({ fecha, tipo, owner: '(todos)', tickets: d.tickets || 0, pipeline, resolucion: null });
+    const pipeline = Object.keys(d.pipelines || {})[0] || '';
+    // pipeline y resolucion forman parte de la llave: van con '' y nunca con null.
+    filas.push({ fecha, tipo, owner: '(todos)', tickets: d.tickets || 0, pipeline, resolucion: '' });
     for (const [owner, n] of Object.entries(d.owners || {}))
-      filas.push({ fecha, tipo, owner, tickets: n, pipeline, resolucion: null });
+      filas.push({ fecha, tipo, owner, tickets: n, pipeline, resolucion: '' });
     for (const [res, n] of Object.entries(d.resolution || {}))
       filas.push({ fecha, tipo, owner: '(todos)', tickets: n, pipeline, resolucion: res });
   }
