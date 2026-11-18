@@ -212,6 +212,10 @@ Aplican a toda vista nueva, no solo a las existentes.
   mostrar saturación** hasta que sus equipos estén en `personas`.
 - **Nada se detiene en silencio:** sin esfuerzo y sin SLA, la etapa se para y el aviso
   dice cuál y por qué.
+- **«Dónde prepararse»** (primera sección de Capacidad) detecta olas: la semana en que más
+  sitios llegan a una etapa cuyo paso más lento no alcanza a absorberlos. Cada alerta es
+  una frase que se entiende sola, ordenadas por kWp que se quedan fuera, y dice
+  explícitamente cuando una sola persona sostiene el paso. Sale del mismo `pronostico()`.
 - El simulador cambia solo `ESTADO.sim`; nunca toca los datos.
 
 ## Reglas de trabajo

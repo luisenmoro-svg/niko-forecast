@@ -853,6 +853,75 @@ function pronostico(M, sim, opciones) {
            porSla, esfuerzoDe: esfuerzo, quienesPueden: puede };
 }
 
+// ====================== Olas: dónde hay que prepararse ======================
+// Una ola es un grupo de sitios que hoy están en una etapa y que, al avanzar, van a
+// caer sobre un paso que no da abasto. Todo sale del mismo pronóstico.
+function olas(M, P) {
+  if (!P || !P.semanas.length) return [];
+  const ritmos = CFG.ritmoEtapas || [];
+  const nombrePersona = id => (M.personas.find(p => p.owner_id === id) || {}).nombre || id;
+  const etiqueta = id => (M.porEtapa.find(e => e.etapa_id === id) || {}).etiqueta || id;
+  const out = [];
+
+  ritmos.forEach((r, i) => {
+    if (r.modo !== 'cola') return;
+    // La semana en la que más sitios llegan a esta etapa.
+    let mejor = null;
+    P.semanas.forEach((w, wi) => {
+      const t = w.traza[r.id];
+      if (t && t.llegaron > (mejor ? mejor.llegaron : 0)) mejor = { llegaron: t.llegaron, wi, t };
+    });
+    if (!mejor || mejor.llegaron < 1) return;
+    const t = mejor.t, p = t.porque || {};
+    if (p.modo !== 'cola' || !p.cuello) return;
+    const cuello = p.cuello;
+    // Solo es alerta si el paso no alcanza a absorber lo que llega.
+    const capacidadSemana = cuello.caben;
+    if (capacidadSemana >= mejor.llegaron) return;
+
+    const origen = ritmos[i - 1];
+    const sitiosOrigen = origen ? (M.porEtapa.find(e => e.etapa_id === origen.id) || {}).sitios || 0 : 0;
+    const destino = ritmos[i + 1];
+    const quienes = (cuello.quienes && cuello.quienes.ids) || [];
+    const unaPersona = quienes.length === 1;
+
+    // Retraso contra la promesa: semanas que tarda la capacidad menos las que promete el SLA.
+    const semCap = capacidadSemana > 0 ? mejor.llegaron / capacidadSemana : Infinity;
+    const promTraza = P.promesa && P.promesa.semanas[mejor.wi] && P.promesa.semanas[mejor.wi].traza[r.id];
+    const semProm = promTraza && promTraza.porque.fraccion > 0 ? 1 / promTraza.porque.fraccion : 1;
+    const retrasoDias = Number.isFinite(semCap) ? Math.max(0, Math.round((semCap - semProm) * 5)) : null;
+
+    // Desfase: sitios del mes comprometido que no alcanzan a salir.
+    const kwpPorSitio = t.fin > 0 ? t.kwpFin / t.fin : 0;
+    const seQuedan = Math.max(0, mejor.llegaron - capacidadSemana);
+    out.push({
+      cod: r.cod, etapaId: r.id, etiqueta: etiqueta(r.id),
+      origenCod: origen ? origen.cod : null, sitiosOrigen,
+      destinoCod: destino ? destino.cod : 'instalación',
+      semana: mejor.wi + 1, llegan: mejor.llegaron,
+      paso: cuello.tipo, equipo: cuello.equipo, sacaPorSemana: capacidadSemana,
+      quienes, unaPersona, quienFuente: (cuello.quienes || {}).fuente,
+      sinCapacidad: !!cuello.sinCapacidad,
+      retrasoDias, seQuedan, kwp: seQuedan * kwpPorSitio,
+      traza: t,
+    });
+  });
+  return out.sort((a, b) => b.kwp - a.kwp);
+}
+
+function fraseOla(o) {
+  const quien = o.sinCapacidad
+    ? `No hay nadie en la tabla de personas para ${esc(o.equipo)}, que es quien debería tomarlos; el pronóstico los mueve a ${fmt1.format(o.sacaPorSemana)} por semana según el SLA`
+    : o.unaPersona
+      ? `Los trabaja <b>una sola persona</b>, ${esc((o.quienesNombres || [])[0] || o.equipo)}, que saca ${fmt1.format(o.sacaPorSemana)} por semana`
+      : `Los trabajan ${o.quienes.length} personas de ${esc(o.equipo)}, que sacan ${fmt1.format(o.sacaPorSemana)} por semana`;
+  return `En <b>${esc(o.cod)}</b> se juntan <b>${fmt1.format(o.llegan)} sitios</b> en ${o.semana}S`
+    + (o.origenCod ? `, que hoy vienen de ${esc(o.origenCod)}` : '')
+    + `. ${quien}`
+    + (o.retrasoDias ? `, así que el paso a ${esc(o.destinoCod)} se retrasa <b>${o.retrasoDias} ${o.retrasoDias === 1 ? 'día hábil' : 'días hábiles'}</b> contra la promesa` : '')
+    + `. Se quedan fuera ${fmt1.format(o.seQuedan)} sitios y ${fmt.format(Math.round(o.kwp))} kWp.`;
+}
+
 // ====================== Vista ======================
 const SIM0 = { meta: null, focoFactor: 1, multEsfuerzo: 1, extraPersonas: {}, diasEtapa: {} };
 const ESTADO = { raw: null, modelo: null, tab: 'flujo', unidad: 'sitios', horizonte: CFG.horizonteDias || 10, mes: isoDay(HOY).slice(0, 7), segmento: null, t0: null,
@@ -894,6 +963,7 @@ const DEF = {
   diasRestantes: 'Días hábiles entre hoy y la fecha de instalación del sitio.',
   porQue: 'El ticket que marca el cuello de botella y cuánto tiempo pide entre fila y SLA.',
   ticketsInactivos: 'Tickets abiertos cuyos deals están todos en una etapa inactiva (Inviable, Dormant, Churned). No consumen capacidad: conviene cerrarlos.',
+  prepararse: 'Dónde se va a juntar trabajo antes de que pase. Una ola es un grupo de sitios que hoy están en una etapa y que, al avanzar, caen sobre un paso que no da abasto. Se ordenan por los kWp que se quedan fuera. Es un pronóstico preliminar.',
   cuellos: 'Semana a semana, las horas que pide la fila de cada equipo contra las horas que tiene. Un sitio sale de una etapa cuando se cierra su ticket, así que la velocidad de la cadena es la capacidad de quien cierra. Es un pronóstico preliminar.',
   sinOwner: 'Tickets abiertos cuyo owner de HubSpot no está en la tabla personas, así que su trabajo no se le suma a nadie.',
 };
@@ -1423,6 +1493,28 @@ function vistaCapacidad(M, raw) {
           <td class="izq">${esc(t.persona ? t.persona.nombre : (t.owner_id || 'sin owner'))}</td>
           <td class="izq">${esc(t.etapaDeal || '—')}</td></tr>`).join('')}</tbody>
       </table></div>`) : ''}
+
+    ${(() => { const P = pronostico(M, ESTADO.sim);
+      const O = olas(M, P);
+      for (const o of O) o.quienesNombres = o.quienes.map(id => (M.personas.find(p => p.owner_id === id) || {}).nombre || id);
+      return seccion('prepararse', 'Dónde prepararse', 'prepararse',
+        O.length ? `${O.length} ${O.length === 1 ? 'ola' : 'olas'} · ${fmt.format(Math.round(sum(O, o => o.kwp)))} kWp en juego` : 'ninguna ola a la vista',
+        `Pronóstico preliminar · ${P.semanas.length} semanas${simActivo() ? ' · con los cambios del simulador' : ''}`,
+        O.length ? O.map(o => `<details class="cuello">
+          <summary>${fraseOla(o)}</summary>
+          <div class="tabla"><table>
+            <thead><tr><th class="izq">Semana</th>${P.semanas.map((w, i) => `<th>${i + 1}S</th>`).join('')}</tr></thead>
+            <tbody>
+              <tr><td class="izq">Llegan a ${esc(o.cod)}</td>${P.semanas.map(w => { const t = w.traza[o.etapaId]; return `<td>${t ? fmt1.format(t.llegaron) : '—'}</td>`; }).join('')}</tr>
+              <tr><td class="izq">Alcanza a sacar</td>${P.semanas.map(w => { const t = w.traza[o.etapaId]; const c = t && t.porque && t.porque.cuello; return `<td>${c ? fmt1.format(c.caben) : '—'}</td>`; }).join('')}</tr>
+              <tr><td class="izq">Se acumulan</td>${P.semanas.map(w => { const t = w.traza[o.etapaId]; return `<td>${t ? fmt1.format(t.fin) : '—'}</td>`; }).join('')}</tr>
+            </tbody></table></div>
+          <p class="nota"><b>Quién lo trabaja:</b> ${o.sinCapacidad
+              ? `nadie en la tabla de personas. Debería tomarlo ${esc(o.equipo)}, y mientras tanto el pronóstico lo hace avanzar por su SLA.`
+              : `${o.quienesNombres.map(esc).join(', ')} <span class="supuesto">(${esc(o.quienFuente)})</span>. El paso que atora es «${esc(o.paso)}».`}</p>
+          <p class="nota"><b>Sitios de la ola:</b> hoy hay ${fmt.format(o.sitiosOrigen)} en ${esc(o.origenCod || '—')} que vienen en camino.</p>
+        </details>`).join('') : '<p class="nota">Con el ritmo de hoy, ninguna etapa recibe más sitios de los que alcanza a sacar.</p>')
+    ;})()}
 
     ${(() => { const P = pronostico(M, ESTADO.sim);
       const frase = c => c.primeraSemana == null
