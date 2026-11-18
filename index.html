@@ -135,6 +135,10 @@ details.cuello > summary { cursor: pointer; }
 .sim label { font-size: 12px; }
 .sim.on { border-color: var(--hs-ink); background: var(--hs-yellow-tenue, #fbfde0); }
 .panel-det tr.marca td { font-weight: 600; }
+table.pasos { width: 100%; margin-top: 6px; border-collapse: collapse; font-size: 11px; }
+table.pasos th, table.pasos td { padding: 3px 5px; border-top: 1px solid var(--hs-border); text-align: right; }
+table.pasos th.izq, table.pasos td.izq { text-align: left; }
+table.pasos tr.marca { background: var(--hs-yellow-tenue, #fbfde0); font-weight: 600; }
 .panel-det td.asunto { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .panel-det table { table-layout: auto; width: 100%; }
 .info.anc-izq::after { left: 0; transform: none; }
@@ -705,41 +709,148 @@ function entradaMeta(M) {
            kwpPorSitio: metaMes ? (M.metricas.goal.kwp || 0) / metaMes : 0 };
 }
 
-function pronostico(M, sim) {
-  const S = sim || {};
-  const ritmos = CFG.ritmoEtapas || [];
+// Esfuerzo de un tipo de ticket, en orden: catálogo → medido con cierres reales →
+// SLA como último recurso. La procedencia viaja con el número y se muestra.
+function resolverEsfuerzo(M) {
   const cal = CFG.esfuerzoCalibrado || {};
+  const minC = CFG.minCierresEsfuerzo || 10;
+  // Esfuerzo medido: horas de la persona que lo cerró entre los cierres de ese tipo.
+  const medido = {};
+  const porTipo = groupBy(M.tickets.filter(t => t.cerrado28 && t.tipo), t => t.tipo);
+  for (const [tipo, ts] of Object.entries(porTipo)) {
+    if (ts.length < minC) continue;
+    const owners = [...new Set(ts.map(t => t.owner_id))].map(id => M.personas.find(p => p.owner_id === id)).filter(Boolean);
+    if (!owners.length) continue;
+    const horas = sum(owners, p => p.fte * p.jornada_h * p.foco * 20);
+    const cerradosDeEsos = M.tickets.filter(t => t.cerrado28 && owners.some(p => p.owner_id === t.owner_id)).length;
+    if (!cerradosDeEsos) continue;
+    medido[tipo] = horas / cerradosDeEsos;
+  }
+  const catPorTipo = {};
+  for (const c of (M.catalogo || [])) catPorTipo[c.tipo] = c;
+  return function (tipo, esRevision) {
+    const c = catPorTipo[tipo];
+    const campo = esRevision ? 'esfuerzo_rev_h' : 'esfuerzo_prod_h';
+    if (cal[tipo] != null && !esRevision) return { h: cal[tipo], fuente: 'calibrado' };
+    const v = c && c[campo] != null && c[campo] !== '' ? Number(c[campo]) : null;
+    if (v != null && !isNaN(v)) return { h: v, fuente: 'catálogo' };
+    if (medido[tipo] != null) return { h: medido[tipo], fuente: 'medido' };
+    const sla = c && c.sla_dias != null && c.sla_dias !== '' ? Number(c.sla_dias) : null;
+    // Último recurso: el SLA como duración. La etapa deja de poder mostrar saturación.
+    if (sla != null && !isNaN(sla) && sla > 0) return { h: sla * 8, fuente: 'según SLA', porSla: true };
+    return { h: null, fuente: 'sin dato' };
+  };
+}
 
-  // Ritmo de entrada. Sin dos fotos separadas por una semana no se puede medir:
-  // en ese caso se dice y se usa el de la meta, nunca cero en silencio.
+// Quién puede tomar cada tipo: SKILLS del motor, y si no, quién lo ha cerrado.
+function quienesPueden(M) {
+  const skills = CFG.skills || {};
+  const minS = CFG.minCierresSkill || 3;
+  const porTipo = groupBy(M.tickets.filter(t => t.cerrado28 && t.tipo && t.owner_id), t => t.tipo);
+  return function (tipo) {
+    if (skills[tipo] && skills[tipo].length) return { ids: skills[tipo], fuente: 'skills' };
+    const ts = porTipo[tipo] || [];
+    const cuenta = {};
+    for (const t of ts) cuenta[t.owner_id] = (cuenta[t.owner_id] || 0) + 1;
+    const ids = Object.keys(cuenta).filter(id => cuenta[id] >= minS);
+    return { ids, fuente: ids.length ? 'quien lo cierra' : 'nadie' };
+  };
+}
+
+function pronostico(M, sim, opciones) {
+  const S = sim || {};
+  const O = opciones || {};
+  const ritmos = CFG.ritmoEtapas || [];
+
   const eReal = entradaReal(M), eMeta = entradaMeta(M);
   const pedido = S.entrada || 'real';
   const hayHistoria = !!eReal;
   const modoEntrada = pedido === 'meta' ? 'meta' : (hayHistoria ? 'real' : 'sin-historia');
   const nuevos = modoEntrada === 'real' ? eReal : eMeta;
 
+  const esfuerzo = resolverEsfuerzo(M);
+  const puede = quienesPueden(M);
+  const factor = (S.focoFactor == null ? 1 : S.focoFactor);
+
+  // Horas por semana de cada persona, con los ajustes del simulador.
+  const horasPersona = {};
+  for (const p of M.personas) {
+    const porDia = M.dias.length ? p.dispH / M.dias.length : 0;
+    horasPersona[p.owner_id] = porDia * factor * 5;
+  }
+  // Personas extra: se agregan como capacidad suelta del equipo.
+  const extraEquipo = {};
+  for (const [eq, n] of Object.entries(S.extraPersonas || {})) extraEquipo[eq] = n * 8 * 0.8 * 5;
+
+  // Reparto: cada persona divide su semana entre las filas que puede tomar, en
+  // proporción al tamaño de cada fila.
+  let repartoPersona = {};
+  const fijarColas = (colas, estado) => {
+    repartoPersona = {};
+    const tamanos = {};   // tipo -> sitios esperando
+    for (const lista of Object.values(colas)) for (const c of lista)
+      tamanos[c.tipo] = (tamanos[c.tipo] || 0) + ((estado[c.etapa.id] || {}).sitios || 0);
+    const tiposDe = {};
+    for (const tipo of Object.keys(tamanos)) {
+      for (const id of puede(tipo).ids) (tiposDe[id] = tiposDe[id] || []).push(tipo);
+      // El revisor tiene su propia fila del mismo tipo.
+      for (const id of (CFG.revisores || {})[tipo] || []) (tiposDe[id] = tiposDe[id] || []).push(tipo + ' · revisión');
+    }
+    for (const tipo of Object.keys(tamanos)) tamanos[tipo + ' · revisión'] = tamanos[tipo];
+    for (const [id, tipos] of Object.entries(tiposDe)) {
+      const total = sum(tipos, t => tamanos[t] || 0);
+      for (const t of tipos) {
+        const parte = total > 0 ? (tamanos[t] || 0) / total : 1 / tipos.length;
+        repartoPersona[t] = (repartoPersona[t] || 0) + (horasPersona[id] || 0) * parte;
+      }
+    }
+  };
+  const revisores = CFG.revisores || {};
+  const horasPara = (tipo, equipo, etapaId, w, esRevision) => {
+    const q = esRevision && revisores[tipo] ? { ids: revisores[tipo], fuente: 'revisores' } : puede(tipo);
+    const clave = esRevision && revisores[tipo] ? tipo + ' · revisión' : tipo;
+    if (q.ids.length) return { h: (repartoPersona[clave] || 0) + (extraEquipo[equipo] || 0), quienes: q };
+    // Sin personas identificadas, se usa la capacidad del equipo entero.
+    const eq = M.equipos.find(x => x.nombre === equipo);
+    const porDia = eq && M.dias.length ? eq.dispH / M.dias.length : 0;
+    return { h: porDia * factor * 5 + (extraEquipo[equipo] || 0), quienes: { ids: [], fuente: 'equipo completo' } };
+  };
+
   const capSemana = {};
   for (const e of M.equipos) {
-    const extra = (S.extraPersonas && S.extraPersonas[e.nombre]) || 0;
-    const factor = (S.focoFactor == null ? 1 : S.focoFactor);
     const porDia = M.dias.length ? e.dispH / M.dias.length : 0;
-    capSemana[e.nombre] = (porDia * factor + extra * 8 * 0.8) * 5;
+    capSemana[e.nombre] = porDia * factor * 5 + (extraEquipo[e.nombre] || 0);
   }
   const estado = {};
   for (const e of M.porEtapa) estado[e.etapa_id] = { sitios: e.sitios, kwp: e.kwp };
 
-  const R = NIKO_MODELO.calcularPronostico({
-    ritmos, estado, capSemana, nuevos,
-    semanas: CFG.semanasPronostico || 10,
+  const slaDe = tipo => {
+    const c = (M.catalogo || []).find(x => x.tipo === tipo);
+    const v = c && c.sla_dias != null && c.sla_dias !== '' ? Number(c.sla_dias) : null;
+    return v == null || isNaN(v) ? null : v;
+  };
+
+  const comun = {
+    ritmos, capSemana, nuevos, semanas: CFG.semanasPronostico || 10,
     ajustes: { multEsfuerzo: S.multEsfuerzo, diasEtapa: S.diasEtapa },
-    esfuerzo: tipo => {
-      if (cal[tipo] != null) return { h: cal[tipo], fuente: 'calibrado' };
-      const c = (M.catalogo || []).find(x => x.tipo === tipo);
-      const h = c && c.esfuerzo_prod_h != null && c.esfuerzo_prod_h !== '' ? Number(c.esfuerzo_prod_h) : null;
-      return { h: h == null || isNaN(h) ? null : h, fuente: h == null ? 'sin dato' : 'catálogo' };
-    },
+    esfuerzo, sla: slaDe, horasPara, fijarColas,
+  };
+  const R = NIKO_MODELO.calcularPronostico({ ...comun, estado: { ...estado } });
+  // La promesa: lo mismo pero suponiendo que cada ticket cierra en su SLA.
+  const Prom = O.sinPromesa ? null : NIKO_MODELO.calcularPronostico({
+    ...comun, estado: { ...estado }, promesa: true,
+    horasPara: () => ({ h: 0, quienes: { ids: [] } }),
   });
-  return { ...R, capSemana, entrada: nuevos, modoEntrada, eReal, eMeta, hayHistoria };
+
+  // Etapas cuyo ritmo salió del SLA por falta de esfuerzo: no pueden mostrar saturación.
+  const porSla = [];
+  for (const r of ritmos) for (const t of (r.tickets || [])) {
+    const e2 = esfuerzo(t.tipo, t.revision);
+    if (e2.porSla) porSla.push(`${r.cod} · ${t.tipo}`);
+  }
+
+  return { ...R, promesa: Prom, capSemana, entrada: nuevos, modoEntrada, eReal, eMeta, hayHistoria,
+           porSla, esfuerzoDe: esfuerzo, quienesPueden: puede };
 }
 
 // ====================== Vista ======================
@@ -905,12 +1016,21 @@ function pintarDetalle() {
     const t = d.traza, p = t.porque || {};
     const n1 = x => fmt1.format(x);
     const cuadra = Math.abs((t.inicio + t.llegaron - t.salieron + t.nuevos) - t.fin) < 0.05;
+    const paso = x => `<tr${x === p.cuello ? ' class="marca"' : ''}><td class="izq">${esc(x.tipo)}</td><td class="izq">${esc(x.equipo)}</td>`
+      + `<td>${n1(x.horas)} h</td><td>${n1(x.esfuerzo)} h</td><td>${n1(x.caben)}</td>`
+      + `<td class="izq"><span class="supuesto">${esc(x.fuente)}</span>${x.quienes && x.quienes.ids.length ? ` · ${x.quienes.ids.length} ${x.quienes.ids.length === 1 ? 'persona' : 'personas'} <span class="supuesto">(${esc(x.quienes.fuente)})</span>` : x.quienes ? ` <span class="supuesto">(${esc(x.quienes.fuente)})</span>` : ''}</td></tr>`;
     const motivo = p.modo === 'cola'
-      ? `${esc(p.equipo)} tiene ${n1(p.horas)} h asignadas a esta etapa ${p.compiten > 1 ? `(su capacidad de ${n1(p.capEquipo)} h se reparte entre ${p.compiten} filas) ` : ''}÷ ${n1(p.esfuerzo)} h por «${esc(p.ticket)}» = <b>${n1(p.caben)} sitios</b> que alcanza a cerrar.${p.topado ? ` Solo había ${n1(t.inicio + t.llegaron)}, así que salen todos.` : ''} <span class="supuesto">esfuerzo ${esc(p.fuente)}</span>`
+      ? `La etapa va al ritmo de su paso más lento: <b>${esc((p.cuello || {}).tipo || '—')}</b>, que deja pasar <b>${n1(p.caben)} sitios</b>.${p.topado ? ` Solo había ${n1(t.inicio + t.llegaron)}, así que salen todos.` : ''}
+         <table class="pasos"><thead><tr><th class="izq">Paso</th><th class="izq">Equipo</th><th>Horas</th><th>c/u</th><th>Caben</th><th class="izq">De dónde</th></tr></thead>
+         <tbody>${(p.pasos || []).map(paso).join('')}</tbody></table>`
+      : p.modo === 'promesa'
+        ? `Promesa del catálogo: ${n1(p.dias)} días hábiles${p.sec && p.par ? ` (${n1(p.sec)} en secuencia + ${n1(p.par)} del paralelo más lento)` : ''}: sale <b>${pct(p.fraccion)}</b> por semana.`
+      : p.modo === 'sin-sla'
+        ? `<span class="pd-mal">Sin SLA en el catálogo para ${(p.tickets || []).map(esc).join(', ')}: no se puede calcular la promesa.</span>`
       : p.modo === 'proceso'
         ? `Según proceso, ${n1(p.dias)} días hábiles${p.nota ? ` (${esc(p.nota)})` : ''}: en una semana de 5 días sale <b>${pct(p.fraccion)}</b> de lo que hay. <span class="supuesto">días del Reverse Eng Model</span>`
         : p.modo === 'sin-esfuerzo'
-          ? `<span class="pd-mal">«${esc(p.ticket)}» no tiene esfuerzo en el catálogo, así que esta etapa queda detenida.</span>`
+          ? `<span class="pd-mal">${esc(p.ticket)}: sin esfuerzo en el catálogo, sin cierres suficientes para medirlo y sin SLA. La etapa queda detenida.</span>`
           : 'No había sitios en la etapa.';
     document.getElementById('pd-n').innerHTML = `Semana a semana, así se arma el número${cuadra ? '' : '<span class="pd-mal">Las cuentas no cuadran con la celda</span>'}`;
     document.getElementById('pd-c').innerHTML = `<div class="tabla"><table>
@@ -1312,7 +1432,9 @@ function vistaCapacidad(M, raw) {
       return seccion('cuellos', 'Próximos cuellos de botella', 'cuellos',
         resumen ? `${resumen} de ${P.cuellos.length} equipos se saturan` : 'ningún equipo se satura',
         `Pronóstico preliminar · demanda de las colas contra la capacidad del equipo, ${P.semanas.length} semanas`,
-        `${P.modoEntrada === 'sin-historia' ? `<p class="aviso error">No hay dos fotos separadas por una semana, así que <b>no se puede medir el ritmo real de entrada</b>. El pronóstico usa el ritmo que haría falta para la meta (${fmt1.format(P.eMeta.sitios)} sitios por semana). No es el ritmo de hoy.</p>` : ''}
+        `${P.sinQuien && P.sinQuien.length ? `<p class="aviso error">${P.sinQuien.length} pasos no tienen a nadie que pueda tomarlos, así que su etapa queda detenida en el pronóstico: ${P.sinQuien.map(esc).join(', ')}.</p>` : ''}
+        ${P.porSla && P.porSla.length ? `<p class="aviso">${P.porSla.length} pasos usan el SLA como duración porque no hay esfuerzo ni cierres suficientes: ${P.porSla.map(esc).join(', ')}. <b>Esas etapas no pueden mostrar saturación</b>, porque el SLA mide tiempo prometido y no horas de trabajo.</p>` : ''}
+        ${P.modoEntrada === 'sin-historia' ? `<p class="aviso error">No hay dos fotos separadas por una semana, así que <b>no se puede medir el ritmo real de entrada</b>. El pronóstico usa el ritmo que haría falta para la meta (${fmt1.format(P.eMeta.sitios)} sitios por semana). No es el ritmo de hoy.</p>` : ''}
         <p class="fuente">${P.modoEntrada === 'meta'
             ? `Entran <b>${fmt1.format(P.eMeta.sitios)} sitios por semana</b>, los que harían falta para la meta de ${fmt.format(M.metricas.goal.sitios)} al mes despejando las conversiones (${pct(P.eMeta.conv)} sobrevive la cadena).`
             : P.eReal

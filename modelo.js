@@ -23,8 +23,8 @@
     const semanas = e.semanas || 10;
     const aj = e.ajustes || {};
     const mult = aj.multEsfuerzo || 1;
-    const esfuerzoDe = t => {
-      const r = e.esfuerzo(t) || {};
+    const esfuerzoDe = (t, esRevision) => {
+      const r = e.esfuerzo(t, esRevision) || {};
       return { h: r.h == null ? null : r.h * mult, fuente: r.fuente || 'sin dato' };
     };
 
@@ -37,15 +37,20 @@
 
     const salida = [];
     const sinEsfuerzo = new Set();
+    const sinSla = new Set();
+    const sinQuien = new Set();
     const demandaEquipo = {};
 
     for (let w = 1; w <= semanas; w++) {
       // Colas vivas por equipo: se reparten su capacidad.
+      // Filas vivas por equipo: cada paso de cada etapa con sitios esperando.
       const colas = {};
       for (const r of ritmos) {
         if (r.modo !== 'cola') continue;
-        if ((estado[r.id] || {}).sitios > 0) (colas[r.equipo] = colas[r.equipo] || []).push(r);
+        if (!((estado[r.id] || {}).sitios > 0)) continue;
+        for (const t of (r.tickets || [])) (colas[t.equipo] = colas[t.equipo] || []).push({ etapa: r, tipo: t.tipo });
       }
+      if (e.fijarColas) e.fijarColas(colas, estado);
       const mueve = {}, porque = {}, inicio = {};
       for (const r of ritmos) {
         const st = estado[r.id];
@@ -58,23 +63,61 @@
           porque[r.id] = { modo: 'proceso', dias: dias, fraccion: frac, nota: r.nota || '' };
           continue;
         }
-        const esf = esfuerzoDe(r.ticket);
-        // Sin esfuerzo no se inventa un ritmo: la cola queda detenida y se marca.
-        if (esf.h == null) {
-          sinEsfuerzo.add(r.cod + ' · ' + r.ticket);
-          mueve[r.id] = 0; porque[r.id] = { modo: 'sin-esfuerzo', ticket: r.ticket };
+        // --- MODO PROMESA: cada ticket se resuelve en su SLA. Secuencial suma, paralelo
+        // toma el mayor. No mira capacidad: es lo que el catálogo promete.
+        if (e.promesa) {
+          let sec = 0, par = 0, falta = false;
+          for (const t of (r.tickets || [])) {
+            const s = e.sla(t.tipo);
+            if (s == null) { falta = true; continue; }
+            if (t.orden === 'par') par = Math.max(par, s); else sec += s;
+          }
+          const dias = sec + par;
+          if (falta || dias <= 0) {
+            mueve[r.id] = 0; porque[r.id] = { modo: 'sin-sla', tickets: (r.tickets || []).map(t => t.tipo) };
+            sinSla.add(r.cod);
+            continue;
+          }
+          const frac = Math.min(1, 5 / dias);
+          mueve[r.id] = st.sitios * frac;
+          porque[r.id] = { modo: 'promesa', dias: dias, sec: sec, par: par, fraccion: frac };
           continue;
         }
-        const compiten = (colas[r.equipo] || [r]).length;
-        const horas = (e.capSemana[r.equipo] || 0) / compiten;
-        const caben = horas / esf.h;
+        // --- MODO CAPACIDAD: la etapa va al ritmo de su ticket más lento.
+        const pasos = [];
+        for (const t of (r.tickets || [])) {
+          // Un ticket con revisión son dos pasos: quien lo produce y quien lo revisa.
+          const fases = t.revision ? [false, true] : [false];
+          for (const esRev of fases) {
+            const esf = esfuerzoDe(t.tipo, esRev);
+            if (esf.h == null) {
+              if (esRev) continue;   // sin horas de revisión cargadas, solo cuenta producción
+              pasos.push({ tipo: t.tipo, equipo: t.equipo, sinEsfuerzo: true, caben: 0 }); continue;
+            }
+            const horas = e.horasPara(t.tipo, t.equipo, r.id, w, esRev);
+            // Cero horas = nadie puede tomarlo o el equipo no existe. Se marca, no se calla.
+            if (!(horas.h > 0)) sinQuien.add(r.cod + ' · ' + t.tipo + (esRev ? ' (revisión)' : ''));
+            pasos.push({ tipo: t.tipo + (esRev ? ' (revisión)' : ''), equipo: t.equipo,
+                         esfuerzo: esf.h, fuente: esf.fuente, horas: horas.h, quienes: horas.quienes,
+                         sinQuien: !(horas.h > 0),
+                         caben: esf.h > 0 ? horas.h / esf.h : 0 });
+            demandaEquipo[t.equipo] = demandaEquipo[t.equipo] || [];
+            demandaEquipo[t.equipo][w - 1] = (demandaEquipo[t.equipo][w - 1] || 0) + st.sitios * esf.h;
+          }
+        }
+        const sinEsf = pasos.filter(p => p.sinEsfuerzo);
+        if (sinEsf.length) {
+          for (const p of sinEsf) sinEsfuerzo.add(r.cod + ' · ' + p.tipo);
+          mueve[r.id] = 0;
+          porque[r.id] = { modo: 'sin-esfuerzo', ticket: sinEsf.map(p => p.tipo).join(', '), pasos: pasos };
+          continue;
+        }
+        // El cuello de la etapa es el paso que menos sitios deja pasar.
+        const cuello = pasos.reduce((a, p) => (a == null || p.caben < a.caben) ? p : a, null);
+        const caben = cuello ? cuello.caben : 0;
         mueve[r.id] = Math.min(st.sitios, caben);
-        porque[r.id] = { modo: 'cola', equipo: r.equipo, ticket: r.ticket, horas: horas,
-                         capEquipo: e.capSemana[r.equipo] || 0, compiten: compiten,
-                         esfuerzo: esf.h, fuente: esf.fuente, caben: caben,
+        porque[r.id] = { modo: 'cola', pasos: pasos, cuello: cuello, caben: caben,
                          topado: caben > st.sitios };
-        demandaEquipo[r.equipo] = demandaEquipo[r.equipo] || [];
-        demandaEquipo[r.equipo][w - 1] = (demandaEquipo[r.equipo][w - 1] || 0) + st.sitios * esf.h;
       }
 
       // Mover, aplicando la conversión de cada etapa.
@@ -139,7 +182,8 @@
 
     // Cuellos de botella: demanda contra capacidad, del mismo recorrido.
     const equipos = [];
-    for (const r of ritmos) if (r.modo === 'cola' && equipos.indexOf(r.equipo) < 0) equipos.push(r.equipo);
+    for (const r of ritmos) for (const t of (r.tickets || []))
+      if (equipos.indexOf(t.equipo) < 0) equipos.push(t.equipo);
     const cuellos = equipos.map(function (nombre) {
       const cap = e.capSemana[nombre] || 0;
       const dem = [];
@@ -149,13 +193,13 @@
       for (let i = 0; i < util.length; i++) if (util[i] != null && util[i] > 1) { primera = i + 1; break; }
       return {
         nombre: nombre, cap: cap, dem: dem, util: util, primeraSemana: primera,
-        colas: ritmos.filter(r => r.equipo === nombre).map(r => r.cod),
-        esfuerzo: ritmos.filter(r => r.equipo === nombre)
-          .map(r => Object.assign({ ticket: r.ticket }, esfuerzoDe(r.ticket))),
+        colas: ritmos.filter(r => (r.tickets || []).some(t => t.equipo === nombre)).map(r => r.cod),
+        esfuerzo: ritmos.flatMap(r => (r.tickets || []).filter(t => t.equipo === nombre)
+          .map(t => Object.assign({ ticket: t.tipo, etapa: r.cod }, esfuerzoDe(t.tipo, t.revision)))),
       };
     }).sort((a, b) => (a.primeraSemana == null ? 99 : a.primeraSemana) - (b.primeraSemana == null ? 99 : b.primeraSemana));
 
-    return { semanas: salida, cuellos: cuellos, sinEsfuerzo: Array.from(sinEsfuerzo) };
+    return { semanas: salida, cuellos: cuellos, sinEsfuerzo: Array.from(sinEsfuerzo), sinSla: Array.from(sinSla), sinQuien: Array.from(sinQuien) };
   }
 
   raiz.NIKO_MODELO = { calcularPronostico: calcularPronostico };

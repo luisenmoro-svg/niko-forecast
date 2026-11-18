@@ -189,6 +189,24 @@ Aplican a toda vista nueva, no solo a las existentes.
   perdidos por conversión, fin) y el panel la muestra. La regla: **lo que muestra el panel
   tiene que cuadrar exactamente con la celda**, así que el redondeo se hace en el modelo
   y las dos partes usan el mismo formato de un decimal.
+- **Capacidad por persona, no por equipo.** Quién puede tomar cada tipo sale de
+  `config.js > skills` (copiado del motor de Nikoengine) y, donde no hay, de quién cerró
+  al menos `minCierresSkill` de ese tipo en 28 días. Cada persona reparte su semana entre
+  sus filas en proporción al tamaño de cada una.
+- **Producción y revisión son dos pasos.** En Diseño, Eder y Manuel producen
+  (`esfuerzo_prod_h`) y Juneth revisa (`esfuerzo_rev_h`, `config.js > revisores`). No es
+  contradicción con el motor: `NON_RECEIVERS` son reglas de reasignación del motor, y el
+  workflow de HubSpot sí le asigna la revisión a Juneth.
+- **Esfuerzo en tres niveles:** catálogo → medido con cierres reales (mínimo
+  `minCierresEsfuerzo`) → SLA como último recurso. La procedencia se muestra siempre, y
+  las etapas «según SLA» se listan aparte con el aviso de que **no pueden mostrar
+  saturación**.
+- **Cada etapa es una cadena de tickets** (`config.js > ritmoEtapas[].tickets`), con
+  `orden: 'sec'` o `'par'` según el disparador de su workflow. La capacidad se limita por
+  el paso más lento; el orden solo cambia la promesa (secuencial suma SLA, paralelo toma
+  el mayor).
+- **Nada se detiene en silencio:** sin esfuerzo, sin SLA o sin nadie que pueda tomarlo,
+  la etapa se para y el aviso dice cuál y por qué.
 - El simulador cambia solo `ESTADO.sim`; nunca toca los datos.
 
 ## Reglas de trabajo
