@@ -120,6 +120,20 @@ create table if not exists pronosticos (
 );
 create index if not exists pronosticos_semana on pronosticos (semana_fecha);
 
+-- ---------- Historial de demanda (fotos de Devin) ----------
+-- Un renglón por foto, tipo de ticket y owner. Sirve para calibrar esfuerzo y ritmo
+-- de entrada hacia atrás en el tiempo, antes de que existiera el dashboard.
+create table if not exists demanda_historica (
+  fecha      date not null,
+  tipo       text not null,
+  owner      text not null default '(todos)',
+  tickets    integer not null default 0,
+  pipeline   text,
+  resolucion text,
+  primary key (fecha, tipo, owner, coalesce(pipeline,''), coalesce(resolucion,''))
+);
+create index if not exists demanda_historica_tipo on demanda_historica (tipo, fecha);
+
 -- ---------- Seguridad ----------
 -- Solo personas autenticadas con correo del dominio pueden leer.
 -- El script de sincronización usa la service role key y no pasa por RLS.
@@ -129,7 +143,7 @@ declare t text;
 begin
   foreach t in array array['catalogo','personas','ausencias','feriados','metas',
                            'etapas_deal','snapshots','deals_snapshot','tickets_snapshot',
-                           'pronosticos']
+                           'pronosticos','demanda_historica']
   loop
     execute format('alter table %I enable row level security', t);
     execute format('drop policy if exists lectura_dominio on %I', t);

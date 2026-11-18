@@ -166,8 +166,15 @@ Aplican a toda vista nueva, no solo a las existentes.
 - **El pronóstico base se guarda a diario** en la tabla `pronosticos` desde el workflow,
   sin los controles del simulador. Cuando llega la foto real, la tabla de T0 muestra el
   pronóstico junto al dato.
-- ⚠️ **La lógica del pronóstico vive en dos lados**: `pronostico()` en `index.html` y
-  `guardarPronostico()` en `scripts/sync-hubspot.mjs`. Si cambia una, hay que cambiar la otra.
+- **Una sola implementación del modelo**: `modelo.js` en la raíz, que cargan tanto
+  `index.html` (con `<script>`) como `scripts/sync-hubspot.mjs` (leyendo el archivo).
+  No depende del navegador ni de Node. Verificado: con las mismas entradas, los dos
+  entornos devuelven exactamente lo mismo.
+- **Sin dos fotos separadas por 5 días no se puede medir el ritmo de entrada.** En ese
+  caso el pronóstico lo dice en rojo y usa el ritmo de la meta; **nunca cero en silencio**.
+- `pronosticos` y `demanda_historica` ya existen en Supabase (18 nov 2026). Las fotos de
+  Devin se importan con `scripts/importar-devin.mjs`: **no traen deals**, solo `tipos_30d`,
+  un agregado de 30 días por tipo de ticket.
 - El simulador cambia solo `ESTADO.sim`; nunca toca los datos.
 
 ## Reglas de trabajo

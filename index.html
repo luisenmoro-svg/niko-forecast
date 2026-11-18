@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="config.js"></script>
+<script src="modelo.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
 /* Tokens del manual claro de Niko (Niko_Look_and_Feel.md) */
@@ -677,6 +678,10 @@ function datosEjemplo() {
 function entradaReal(M) {
   const sem = M.semanas || [];
   if (sem.length < 2) return null;
+  // Dos fotos pegadas no dan un ritmo semanal: hacen falta al menos 5 días entre la
+  // primera y la última.
+  const span = (toDay(sem[sem.length - 1].fecha) - toDay(sem[0].fecha)) / DAY;
+  if (!(span >= 5)) return null;
   const desde = Math.max(1, sem.length - 4);
   let nuevos = 0, kwp = 0, intervalos = 0;
   for (let i = desde; i < sem.length; i++) {
@@ -701,123 +706,38 @@ function entradaMeta(M) {
 function pronostico(M, sim) {
   const S = sim || {};
   const ritmos = CFG.ritmoEtapas || [];
-  const semanas = CFG.semanasPronostico || 10;
-  const porId = Object.fromEntries(ritmos.map(r => [r.id, r]));
   const cal = CFG.esfuerzoCalibrado || {};
 
-  // Esfuerzo por tipo: calibrado si existe, si no el del catálogo, por el multiplicador.
-  const mult = S.multEsfuerzo || 1;
-  const esfuerzoDe = tipo => {
-    if (cal[tipo] != null) return { h: cal[tipo] * mult, fuente: 'calibrado' };
-    const c = (M.catalogo || []).find(x => x.tipo === tipo);
-    const h = c && c.esfuerzo_prod_h != null && c.esfuerzo_prod_h !== '' ? Number(c.esfuerzo_prod_h) : null;
-    return { h: h == null || isNaN(h) ? null : h * mult, fuente: h == null ? 'sin dato' : 'catálogo' };
-  };
+  // Ritmo de entrada. Sin dos fotos separadas por una semana no se puede medir:
+  // en ese caso se dice y se usa el de la meta, nunca cero en silencio.
+  const eReal = entradaReal(M), eMeta = entradaMeta(M);
+  const pedido = S.entrada || 'real';
+  const hayHistoria = !!eReal;
+  const modoEntrada = pedido === 'meta' ? 'meta' : (hayHistoria ? 'real' : 'sin-historia');
+  const nuevos = modoEntrada === 'real' ? eReal : eMeta;
 
-  // Horas por semana de cada equipo, con los ajustes del simulador.
   const capSemana = {};
   for (const e of M.equipos) {
     const extra = (S.extraPersonas && S.extraPersonas[e.nombre]) || 0;
     const factor = (S.focoFactor == null ? 1 : S.focoFactor);
-    // dispH es del horizonte actual; se normaliza a 5 días hábiles.
     const porDia = M.dias.length ? e.dispH / M.dias.length : 0;
-    const jornadaExtra = extra * 8 * 0.8;  // una persona extra: jornada de 8 h al 80 % de foco
-    capSemana[e.nombre] = (porDia * factor + jornadaExtra) * 5;
+    capSemana[e.nombre] = (porDia * factor + extra * 8 * 0.8) * 5;
   }
-
-  // Estado inicial: los sitios de hoy por etapa.
   const estado = {};
-  for (const e of M.porEtapa) estado[e.etapa_id] = { sitios: e.sitios, kwp: e.kwp, etiqueta: e.etiqueta };
+  for (const e of M.porEtapa) estado[e.etapa_id] = { sitios: e.sitios, kwp: e.kwp };
 
-  const META = (CFG.etapasPostInstalacion || []);
-  const instalada = id => !porId[id] && !META.includes(id);
-  // Ritmo de entrada: real (por defecto) o el que haría falta para la meta.
-  const modoEntrada = S.entrada || 'real';
-  const eReal = entradaReal(M), eMeta = entradaMeta(M);
-  const entrada = modoEntrada === 'meta' ? eMeta : eReal;
-
-  const salida = [];
-  const sinEsfuerzo = new Set();
-  const demandaEquipo = {};   // equipo -> [horas por semana]
-
-  for (let w = 1; w <= semanas; w++) {
-    // 1. Cuánto puede cerrar cada equipo esta semana, repartido entre las colas que compiten.
-    const colasPorEquipo = {};
-    for (const r of ritmos) {
-      if (r.modo !== 'cola') continue;
-      const n = (estado[r.id] || {}).sitios || 0;
-      if (n <= 0) continue;
-      (colasPorEquipo[r.equipo] ||= []).push(r);
-    }
-    const mueve = {};
-    for (const r of ritmos) {
-      const st = estado[r.id];
-      if (!st || st.sitios <= 0) { mueve[r.id] = 0; continue; }
-      if (r.modo === 'proceso') {
-        const dias = (S.diasEtapa && S.diasEtapa[r.cod]) || r.dias || 1;
-        mueve[r.id] = st.sitios * Math.min(1, 5 / dias);   // fracción que alcanza a salir
-      } else {
-        const esf = esfuerzoDe(r.ticket);
-        const compiten = colasPorEquipo[r.equipo] || [r];
-        const horas = (capSemana[r.equipo] || 0) / compiten.length;
-        // Sin esfuerzo en el catálogo la cola no se puede modelar: se marca, no se inventa.
-        if (esf.h == null) { sinEsfuerzo.add(`${r.cod} · ${r.ticket}`); mueve[r.id] = 0; continue; }
-        const cabenTickets = horas / esf.h;
-        mueve[r.id] = Math.min(st.sitios, cabenTickets);
-        (demandaEquipo[r.equipo] ||= []);
-        demandaEquipo[r.equipo][w - 1] = (demandaEquipo[r.equipo][w - 1] || 0) + (esf.h ? st.sitios * esf.h : 0);
-      }
-    }
-    // 2. Mover: lo que sale de una etapa entra a la siguiente, menos la conversión.
-    const siguiente = {};
-    ritmos.forEach((r, i) => {
-      const st = estado[r.id]; if (!st) return;
-      const n = Math.min(st.sitios, mueve[r.id] || 0);
-      if (n <= 0) return;
-      const kwpPorSitio = st.sitios ? st.kwp / st.sitios : 0;
-      const pasan = n * (r.conversion == null ? 1 : r.conversion);
-      st.sitios -= n; st.kwp -= n * kwpPorSitio;
-      const destino = ritmos[i + 1] ? ritmos[i + 1].id : 'INSTALADO';
-      siguiente[destino] = siguiente[destino] || { sitios: 0, kwp: 0 };
-      siguiente[destino].sitios += pasan;
-      siguiente[destino].kwp += pasan * kwpPorSitio;
-    });
-    // Entrada de demanda nueva en la primera etapa de la cadena.
-    if (entrada && entrada.sitios > 0 && ritmos.length) {
-      const primera = ritmos[0].id;
-      estado[primera] = estado[primera] || { sitios: 0, kwp: 0, etiqueta: ritmos[0].cod };
-      estado[primera].sitios += entrada.sitios;
-      estado[primera].kwp += entrada.sitios * (entrada.kwpPorSitio || 0);
-    }
-    let instalados = { sitios: 0, kwp: 0 };
-    for (const [id, v] of Object.entries(siguiente)) {
-      if (id === 'INSTALADO') { instalados = v; continue; }
-      estado[id] = estado[id] || { sitios: 0, kwp: 0, etiqueta: (porId[id] || {}).cod || id };
-      estado[id].sitios += v.sitios; estado[id].kwp += v.kwp;
-    }
-    salida.push({
-      etiqueta: `${w}S`, pronostico: true,
-      porEtapa: Object.fromEntries(Object.entries(estado).map(([k, v]) => [k, { sitios: Math.round(v.sitios), kwp: Math.round(v.kwp) }])),
-      instalados: { sitios: Math.round(instalados.sitios * 10) / 10, kwp: Math.round(instalados.kwp) },
-      sitios: Math.round(Object.values(estado).reduce((a, v) => a + v.sitios, 0)),
-      kwp: Math.round(Object.values(estado).reduce((a, v) => a + v.kwp, 0)),
-    });
-  }
-
-  // 3. Cuellos de botella: demanda contra capacidad, semana a semana.
-  const equipos = [...new Set(ritmos.filter(r => r.modo === 'cola').map(r => r.equipo))];
-  const cuellos = equipos.map(nombre => {
-    const cap = capSemana[nombre] || 0;
-    const dem = [];
-    for (let w = 0; w < semanas; w++) dem.push((demandaEquipo[nombre] || [])[w] || 0);
-    const util = dem.map(d => cap > 0 ? d / cap : null);
-    const primera = util.findIndex(u => u != null && u > 1);
-    const colas = ritmos.filter(r => r.equipo === nombre).map(r => r.cod);
-    return { nombre, cap, dem, util, primeraSemana: primera < 0 ? null : primera + 1, colas,
-             esfuerzo: ritmos.filter(r => r.equipo === nombre).map(r => ({ ticket: r.ticket, ...esfuerzoDe(r.ticket) })) };
-  }).sort((a, b) => (a.primeraSemana ?? 99) - (b.primeraSemana ?? 99));
-
-  return { semanas: salida, cuellos, capSemana, sinEsfuerzo: [...sinEsfuerzo], entrada, modoEntrada, eReal, eMeta };
+  const R = NIKO_MODELO.calcularPronostico({
+    ritmos, estado, capSemana, nuevos,
+    semanas: CFG.semanasPronostico || 10,
+    ajustes: { multEsfuerzo: S.multEsfuerzo, diasEtapa: S.diasEtapa },
+    esfuerzo: tipo => {
+      if (cal[tipo] != null) return { h: cal[tipo], fuente: 'calibrado' };
+      const c = (M.catalogo || []).find(x => x.tipo === tipo);
+      const h = c && c.esfuerzo_prod_h != null && c.esfuerzo_prod_h !== '' ? Number(c.esfuerzo_prod_h) : null;
+      return { h: h == null || isNaN(h) ? null : h, fuente: h == null ? 'sin dato' : 'catálogo' };
+    },
+  });
+  return { ...R, capSemana, entrada: nuevos, modoEntrada, eReal, eMeta, hayHistoria };
 }
 
 // ====================== Vista ======================
@@ -1303,11 +1223,12 @@ function vistaCapacidad(M, raw) {
       return seccion('cuellos', 'Próximos cuellos de botella', 'cuellos',
         resumen ? `${resumen} de ${P.cuellos.length} equipos se saturan` : 'ningún equipo se satura',
         `Pronóstico preliminar · demanda de las colas contra la capacidad del equipo, ${P.semanas.length} semanas`,
-        `<p class="fuente">${P.modoEntrada === 'meta'
+        `${P.modoEntrada === 'sin-historia' ? `<p class="aviso error">No hay dos fotos separadas por una semana, así que <b>no se puede medir el ritmo real de entrada</b>. El pronóstico usa el ritmo que haría falta para la meta (${fmt1.format(P.eMeta.sitios)} sitios por semana). No es el ritmo de hoy.</p>` : ''}
+        <p class="fuente">${P.modoEntrada === 'meta'
             ? `Entran <b>${fmt1.format(P.eMeta.sitios)} sitios por semana</b>, los que harían falta para la meta de ${fmt.format(M.metricas.goal.sitios)} al mes despejando las conversiones (${pct(P.eMeta.conv)} sobrevive la cadena).`
             : P.eReal
               ? `Entran <b>${fmt1.format(P.eReal.sitios)} sitios por semana</b>, el ritmo real de las últimas ${P.eReal.intervalos} fotos.`
-              : 'Sin suficientes fotos para medir el ritmo de entrada: el pronóstico solo vacía lo que hay hoy.'}</p>
+              : 'Ritmo de entrada no medible: ver el aviso de arriba.'}</p>
         ${P.sinEsfuerzo.length ? `<p class="aviso error">${P.sinEsfuerzo.length} colas no se pueden proyectar porque su ticket no tiene esfuerzo en el catálogo: ${P.sinEsfuerzo.map(esc).join(', ')}. Esas etapas quedan detenidas en el pronóstico.</p>` : ''}
         <p class="aviso">Pronóstico preliminar. El ritmo de cada etapa sale de la capacidad del equipo que cierra su ticket, o de los días del Reverse Eng Model. <b>No usa los tiempos por etapa de HubSpot</b>, que se mueven por lotes.</p>
         ${P.cuellos.map(c => `<details class="cuello">
