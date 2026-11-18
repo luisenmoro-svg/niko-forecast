@@ -122,6 +122,10 @@ th .info { margin-left: 2px; }
 .pd-n { margin: 4px 0 10px; font-size: 12px; color: var(--hs-muted); }
 .pd-mal { display: block; margin-top: 4px; color: var(--hs-red); font-weight: 600; }
 .pd-ord { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; cursor: pointer; color: inherit; }
+.panel-det tr.marca { background: var(--hs-yellow-tenue, #fbfde0); }
+.panel-det tr.marca td { font-weight: 600; }
+.panel-det td.asunto { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-det table { table-layout: auto; width: 100%; }
 .info.anc-izq::after { left: 0; transform: none; }
 .info.anc-der::after { left: auto; right: 0; transform: none; }
 
@@ -717,18 +721,22 @@ function hsDeal(id, texto) {
 // ---------- Panel de detalle: todo número agregado abre su lista ----------
 const DRILL = new Map();
 let drillSeq = 0;
-// `calc` saca de los registros el mismo número que se muestra, para poder cotejarlo.
-function num(texto, titulo, registros, tipo, calc) {
+// Dos clases de número:
+//  - conteo: el panel debe tener exactamente tantos registros como dice la cifra.
+//  - derivado (mediana, promedio, %, horas, días, utilización): no se cuenta, se explica
+//    cómo se calculó, se ordena por el campo relevante y se resalta el que la marca.
+function num(texto, titulo, registros, tipo, o) {
   const lista = registros || [];
   if (!lista.length) return texto;
   const id = 'd' + (++drillSeq);
-  DRILL.set(id, { titulo, registros: lista, tipo, mostrado: texto, calc: calc || null });
+  DRILL.set(id, { titulo, registros: lista, tipo, mostrado: texto,
+    explica: (o && o.explica) || null, ordenar: (o && o.ordenar) || null, resaltar: (o && o.resaltar) || null });
   return `<button class="num" type="button" data-d="${id}">${texto}</button>`;
 }
 const COLS = {
   tickets: [
     ['id', 'Ticket', t => hsTicket(t.ticket_id, t.ticket_id), t => t.ticket_id],
-    ['asunto', 'Asunto', t => esc(t.asunto || ''), t => t.asunto || ''],
+    ['asunto', 'Asunto', t => `<span title="${esc(t.asunto || '')}">${esc(t.asunto || '')}</span>`, t => t.asunto || '', 'asunto'],
     ['tipo', 'Tipo', t => esc(t.tipo || '—'), t => t.tipo || ''],
     ['owner', 'Owner', t => esc(t.persona ? t.persona.nombre : (t.owner_id || 'Sin owner')), t => t.persona ? t.persona.nombre : (t.owner_id || '')],
     ['etapa', 'Etapa', t => esc(t.etapa_ticket || '—'), t => t.etapa_ticket || ''],
@@ -774,6 +782,7 @@ function pintarDetalle() {
   document.getElementById('pd-t').textContent = d.titulo;
   const cols = COLS[d.tipo] || COLS.tickets;
   let filas = [...(d.registros || [])];
+  if (!PANEL.orden && d.ordenar) { PANEL.orden = d.ordenar; PANEL.asc = true; }
   if (PANEL.orden) {
     const c = cols.find(x => x[0] === PANEL.orden);
     if (c) filas.sort((a, b) => {
@@ -782,13 +791,16 @@ function pintarDetalle() {
       return PANEL.asc ? r : -r;
     });
   }
-  // El total del panel tiene que coincidir con el número que se clicó.
-  const calculado = d.calc ? d.calc(d.registros) : d.registros.length;
-  const mostrado = Number(String(d.mostrado).replace(/[^0-9.-]/g, ''));
-  const cuadra = !Number.isFinite(mostrado) || Math.abs(calculado - mostrado) < 0.05;
-  document.getElementById('pd-n').innerHTML = `${fmt.format(d.registros.length)} ${d.registros.length === 1 ? 'registro' : 'registros'}`
-    + (d.calc ? ` · suman ${fmt1.format(calculado)}` : '')
-    + (cuadra ? '' : `<span class="pd-mal">No cuadra: la cifra dice ${esc(d.mostrado)} y la lista da ${fmt1.format(calculado)}</span>`);
+  if (d.explica) {
+    // Número derivado: no se cuenta contra la lista, se explica.
+    document.getElementById('pd-n').textContent = d.explica;
+  } else {
+    // Conteo: la lista tiene que tener exactamente tantos registros como dice la cifra.
+    const mostrado = Number(String(d.mostrado).replace(/[^0-9.-]/g, ''));
+    const cuadra = !Number.isFinite(mostrado) || d.registros.length === mostrado;
+    document.getElementById('pd-n').innerHTML = `${fmt.format(d.registros.length)} ${d.registros.length === 1 ? 'registro' : 'registros'}`
+      + (cuadra ? '' : `<span class="pd-mal">No cuadra: la cifra dice ${esc(d.mostrado)} y la lista tiene ${fmt.format(d.registros.length)}</span>`);
+  }
   if (d.tipo === 'delta') {
     const g = d.desglose;
     const sig = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt1.format(Math.abs(n));
@@ -810,7 +822,8 @@ function pintarDetalle() {
   }
   document.getElementById('pd-c').innerHTML = `<div class="tabla"><table>
     <thead><tr>${cols.map(c => `<th class="izq"><button type="button" class="pd-ord" data-c="${c[0]}" aria-sort="${PANEL.orden === c[0] ? (PANEL.asc ? 'ascending' : 'descending') : 'none'}">${esc(c[1])}${PANEL.orden === c[0] ? (PANEL.asc ? ' ↑' : ' ↓') : ''}</button></th>`).join('')}</tr></thead>
-    <tbody>${filas.map(r => `<tr>${cols.map(c => `<td class="izq">${c[2](r)}</td>`).join('')}</tr>`).join('')}</tbody>
+    <tbody>${(() => { const marca = d.resaltar ? d.resaltar(filas) : null;
+      return filas.map((r, i) => `<tr${marca && marca.has(i) ? ' class="marca"' : ''}>${cols.map(c => `<td class="izq ${c[4] || ''}">${c[2](r)}</td>`).join('')}</tr>`).join(''); })()}</tbody>
   </table></div>`;
   document.querySelectorAll('.pd-ord').forEach(b => b.addEventListener('click', () => {
     if (PANEL.orden === b.dataset.c) PANEL.asc = !PANEL.asc; else { PANEL.orden = b.dataset.c; PANEL.asc = true; }
@@ -862,7 +875,17 @@ function v(x) { return ESTADO.unidad === 'sitios' ? fmt.format(x.sitios) : fmt.f
 function u(n) { return ESTADO.unidad === 'sitios' ? (n === 1 ? 'sitio' : 'sitios') : 'kWp'; }
 function nSitios(n) { return `${fmt.format(n)} ${n === 1 ? 'sitio' : 'sitios'}`; }
 
-const calcU = ds => ESTADO.unidad === 'sitios' ? ds.length : ds.reduce((a, d) => a + (d.kwp || 0), 0);
+// En sitios es un conteo y se puede cotejar; en kWp es una suma y se explica.
+const opU = (ds, que) => ESTADO.unidad === 'sitios' ? undefined
+  : { explica: `Suma de kWp de ${fmt.format(ds.length)} ${ds.length === 1 ? 'sitio' : 'sitios'} ${que}: ${fmt1.format(ds.reduce((a, d) => a + (d.kwp || 0), 0))} kWp`, ordenar: 'kwp' };
+const opHoras = (ts, que) => ({ explica: `Suma del esfuerzo del catálogo de ${fmt.format(ts.length)} ${ts.length === 1 ? 'ticket' : 'tickets'} ${que}: ${fmt1.format(ts.reduce((a, t) => a + (t.horas || 0), 0))} h`, ordenar: 'atraso' });
+const opPct = (ts, que) => ({ explica: `${fmt.format(ts.filter(t => t.edad <= t.sla).length)} de ${fmt.format(ts.length)} ${que} cerraron dentro de su SLA`, ordenar: 'atraso' });
+const opMediana = (ts, valor) => ({
+  explica: `Mediana de ${fmt1.format(valor)} días hábiles sobre ${fmt.format(ts.length)} ${ts.length === 1 ? 'ticket abierto' : 'tickets abiertos'}, ordenados por edad`,
+  ordenar: 'edad',
+  resaltar: filas => { const n = filas.length; return new Set(n % 2 ? [(n - 1) / 2] : [n / 2 - 1, n / 2]); },
+});
+const opUtil = (ts, quien, req, disp) => ({ explica: `${fmt1.format(req)} h requeridas entre ${fmt1.format(disp)} h disponibles de ${quien}. Los ${fmt.format(ts.length)} abiertos que forman las horas requeridas:`, ordenar: 'atraso' });
 
 function vistaMeta(M) {
   const k = ESTADO.unidad;
@@ -873,8 +896,8 @@ function vistaMeta(M) {
   return `<section class="meta" aria-label="Meta del mes">
     <div class="meta-cifras">
       ${cifra('goal', v(M.goal), 'Company Goal', `Lo prometido para ${MESES[m - 1]} ${a}`, 'goal')}
-      ${cifra('forecast', num(v(M.forecast), 'Forecast del mes', M.listas.forecast, 'sitios', calcU), 'Forecast', `Lo que la capacidad actual alcanza a entregar, de ${num(v(M.plan), 'Sitios comprometidos del mes', M.listas.plan, 'sitios', calcU)} comprometidos`, 'fc')}
-      ${cifra('real', num(v(M.real), 'Real del mes', M.listas.real, 'sitios', calcU), 'Real', `${ESTADO.unidad === 'sitios' ? 'Sitios' : 'kWp'} que ya llegaron a instalación`, 're')}
+      ${cifra('forecast', num(v(M.forecast), 'Forecast del mes', M.listas.forecast, 'sitios', opU(M.listas.forecast, 'que entran en el forecast')), 'Forecast', `Lo que la capacidad actual alcanza a entregar, de ${num(v(M.plan), 'Sitios comprometidos del mes', M.listas.plan, 'sitios', opU(M.listas.plan, 'comprometidos'))} comprometidos`, 'fc')}
+      ${cifra('real', num(v(M.real), 'Real del mes', M.listas.real, 'sitios', opU(M.listas.real, 'ya instalados')), 'Real', `${ESTADO.unidad === 'sitios' ? 'Sitios' : 'kWp'} que ya llegaron a instalación`, 're')}
       ${cifra('delta ' + (delta < 0 ? 'neg' : 'pos'), num_delta((delta > 0 ? '+' : '') + fmt.format(delta), 'Delta: de dónde sale la brecha', {
         unidad: k === 'sitios' ? 'Sitios' : 'kWp', goal: M.goal[k], plan: M.plan[k], forecast: M.forecast[k],
         // Las dos partes suman el delta por construcción: (plan−goal) + (forecast−plan) = forecast−goal.
@@ -930,7 +953,7 @@ function vistaCadena(etapas, sem) {
   const tarjeta = e => `
       <div class="etapa ${e.es_instalado ? 'inst' : ''}" title="${esc(e.etiqueta)}: ${nSitios(e.sitios)}, ${fmt1.format(e.kwp)} kWp">
         <div class="e">${esc(e.etiqueta)}</div>
-        <div class="v">${num(k === 'sitios' ? e.sitios : fmt.format(e.kwp), `${e.etiqueta} · foto más reciente`, e.ds, 'sitios', calcU)}</div>
+        <div class="v">${num(k === 'sitios' ? e.sitios : fmt.format(e.kwp), `${e.etiqueta} · foto más reciente`, e.ds, 'sitios', opU(e.ds, `en ${e.etiqueta}`))}</div>
         <div class="k">${k === 'sitios' ? fmt.format(e.kwp) + ' kWp' : nSitios(e.sitios)}</div>
         ${desdeT0(e)}
       </div>`;
@@ -971,20 +994,26 @@ function vistaFlujo(M, raw) {
   const vencidos = M.abiertos.filter(t => t.estadoSla === 'vencido').sort((a, b) => (b.edad - b.sla) - (a.edad - a.sla)).slice(0, 25);
   const fH = fuenteHubspot(raw);
   const fCat = fuenteManual(raw.catalogo, 'catálogo de tickets');
-  const totalSitios = etapas.reduce((a, e) => a + e.sitios, 0);
-  const totalKwp = etapas.reduce((a, e) => a + e.kwp, 0);
+  // La post-instalación no se suma a la cadena: son sitios que ya salieron del flujo.
+  const esPost = e => (CFG.etapasPostInstalacion || []).includes(e.etapa_id);
+  const enCadena = etapas.filter(e => !esPost(e));
+  const enPost = etapas.filter(esPost);
+  const tot = ls => ({ s: ls.reduce((a, e) => a + e.sitios, 0), k: ls.reduce((a, e) => a + e.kwp, 0) });
+  const tCadena = tot(enCadena), tPost = tot(enPost);
 
   return `
     <div class="resumen">
       <div><b>${num(fmt.format(R.abiertos), 'Tickets abiertos', L.abiertos, 'tickets')}</b><span>tickets abiertos ${info('abiertos')}</span></div>
       <div><b>${num(fmt.format(R.vencidos), 'Tickets fuera de SLA', L.vencidos, 'tickets')}</b><span>fuera de SLA ${info('vencidos')}</span></div>
       <div><b>${num(fmt.format(R.riesgo), 'Tickets en riesgo', L.riesgo, 'tickets')}</b><span>en riesgo ${info('riesgo')}</span></div>
-      <div><b>${num(pct(R.cumplimiento), 'Cerrados en los últimos 28 días con SLA', L.cerrados28, 'tickets', ts => ts.length ? Math.round(ts.filter(t => t.edad <= t.sla).length / ts.length * 100) : 0)}</b><span>cerrados a tiempo ${info('cumplimiento')}</span></div>
+      <div><b>${num(pct(R.cumplimiento), 'Cerrados en los últimos 28 días con SLA', L.cerrados28, 'tickets', opPct(L.cerrados28, 'cerrados en 28 días'))}</b><span>cerrados a tiempo ${info('cumplimiento')}</span></div>
       <div><b>${fmt.format(R.sitiosT0)} · ${fmt.format(R.kwpT0)}</b><span>sitios y kWp en T0 ${info('t0')}</span></div>
     </div>
 
     ${seccion('cadena', 'Dónde están hoy los sitios', 'cadena',
-      `${fmt.format(totalSitios)} sitios · ${fmt.format(totalKwp)} kWp`, fH, vistaCadena(etapas, sem))}
+      `en la cadena ${fmt.format(tCadena.s)} sitios · ${fmt.format(tCadena.k)} kWp`
+      + (enPost.length ? ` · post-instalación ${fmt.format(tPost.s)} sitios · ${fmt.format(tPost.k)} kWp` : ''),
+      fH, vistaCadena(etapas, sem))}
 
     ${seccion('t0', 'Qué cambió desde T0', 'desdeT0',
       `${sem.length} fotos · total ${fmt.format(sem[sem.length - 1]?.sitios || 0)} sitios${sem.length > 1 ? ` (${(sem[sem.length - 1].sitios - sem[0].sitios) >= 0 ? '+' : '−'}${fmt.format(Math.abs(sem[sem.length - 1].sitios - sem[0].sitios))} desde T0)` : ''}`,
@@ -996,7 +1025,7 @@ function vistaFlujo(M, raw) {
       <tbody>${etapas.map(e => `<tr><td>${esc(e.etiqueta)}</td>${sem.map((s, i) => {
         const x = s.porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 }, x0 = sem[0].porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 };
         const ds = sitiosDe(s, e);
-        return `<td class="par">${num(fmt.format(x.sitios), `${e.etiqueta} · ${s.etiqueta} ${s.fecha}`, ds, 'sitios')}${i ? delta(x.sitios, x0.sitios) : ''}</td><td>${num(fmt.format(x.kwp), `${e.etiqueta} · ${s.etiqueta} ${s.fecha} · kWp`, ds, 'sitios', dd => dd.reduce((a, d) => a + (d.kwp || 0), 0))}${i ? delta(x.kwp, x0.kwp) : ''}</td>`;
+        return `<td class="par">${num(fmt.format(x.sitios), `${e.etiqueta} · ${s.etiqueta} ${s.fecha}`, ds, 'sitios')}${i ? delta(x.sitios, x0.sitios) : ''}</td><td>${num(fmt.format(x.kwp), `${e.etiqueta} · ${s.etiqueta} ${s.fecha} · kWp`, ds, 'sitios', { explica: `Suma de kWp de ${fmt.format(ds.length)} sitios en ${e.etiqueta} el ${s.fecha}: ${fmt1.format(x.kwp)} kWp`, ordenar: 'kwp' })}${i ? delta(x.kwp, x0.kwp) : ''}</td>`;
       }).join('')}</tr>`).join('')}</tbody>
       <tfoot><tr><td>Total</td>${sem.map((s, i) => `
         <td class="par">${fmt.format(s.sitios)}${i ? delta(s.sitios, sem[0].sitios) : ''}</td>
@@ -1015,10 +1044,10 @@ function vistaFlujo(M, raw) {
         <td>${num(r.abiertos, `Abiertos · ${r.tipo}`, r.lAbiertos, 'tickets')}</td>
         <td>${r.vencidos ? `<span class="pill bad">${num(r.vencidos, `Vencidos · ${r.tipo}`, r.lVencidos, 'tickets')}</span>` : 0}</td>
         <td>${r.riesgo ? `<span class="pill warn">${num(r.riesgo, `En riesgo · ${r.tipo}`, r.lRiesgo, 'tickets')}</span>` : 0}</td>
-        <td>${r.edadMediana == null ? '—' : num(fmt1.format(r.edadMediana), `Edad mediana · ${r.tipo}`, r.lAbiertos, 'tickets')}</td>
+        <td>${r.edadMediana == null ? '—' : num(fmt1.format(r.edadMediana), `Edad mediana · ${r.tipo}`, r.lAbiertos, 'tickets', opMediana(r.lAbiertos, r.edadMediana))}</td>
         <td>${num(r.creados28, `Entraron en 28 días · ${r.tipo}`, r.lCreados28, 'tickets')}</td><td>${num(r.cerrados28, `Salieron en 28 días · ${r.tipo}`, r.lCerrados28, 'tickets')}</td>
-        <td>${num(pct(r.cumplimiento), `Cerrados con SLA · ${r.tipo}`, r.lConSla, 'tickets', ts => ts.length ? Math.round(ts.filter(t => t.edad <= t.sla).length / ts.length * 100) : 0)}</td>
-        <td>${marcaSupuesto(num(fmt1.format(r.horasBacklog), `Horas en fila · ${r.tipo}`, r.lAbiertos, 'tickets', ts => ts.reduce((a, t) => a + (t.horas || 0), 0)), r.firme)}</td></tr>`).join('')}</tbody>
+        <td>${num(pct(r.cumplimiento), `Cerrados con SLA · ${r.tipo}`, r.lConSla, 'tickets', opPct(r.lConSla, `cerrados de ${r.tipo}`))}</td>
+        <td>${marcaSupuesto(num(fmt1.format(r.horasBacklog), `Horas en fila · ${r.tipo}`, r.lAbiertos, 'tickets', opHoras(r.lAbiertos, `abiertos de ${r.tipo}`)), r.firme)}</td></tr>`).join('')}</tbody>
     </table></div>`)}
 
     ${seccion('atrasados', 'Tickets más atrasados', 'atraso',
@@ -1061,8 +1090,8 @@ function vistaCapacidad(M, raw) {
       `<div class="equipos">${M.equipos.map(e => `
       <article class="equipo ${e.nivel}">
         <h3><span>${esc(e.nombre)}</span><span class="pill ${e.nivel}">${e.sinDatos ? 'Sin esfuerzo definido' : e.nivel === 'bad' ? 'Saturado' : e.nivel === 'warn' ? 'Al límite' : 'Con espacio'}</span></h3>
-        <div class="util ${e.nivel === 'bad' ? 'bad' : ''}">${e.sinDatos ? '—' : num(pct(e.util), `Utilización · ${e.nombre}`, e.abiertos, 'tickets')}</div>
-        <div class="nota" style="margin:0">${num(fmt.format(e.reqH), `Horas requeridas · ${e.nombre}`, e.abiertos, 'tickets', ts => ts.reduce((a, t) => a + (t.horas || 0), 0))} h requeridas de ${fmt.format(e.dispH)} h disponibles · ${num(e.backlogN, `Abiertos · ${e.nombre}`, e.abiertos, 'tickets')} abiertos${e.supuesto ? ' · <span class="supuesto">reparto supuesto</span>' : ''}</div>
+        <div class="util ${e.nivel === 'bad' ? 'bad' : ''}">${e.sinDatos ? '—' : num(pct(e.util), `Utilización · ${e.nombre}`, e.abiertos, 'tickets', opUtil(e.abiertos, e.nombre, e.reqH, e.dispH))}</div>
+        <div class="nota" style="margin:0">${num(fmt.format(e.reqH), `Horas requeridas · ${e.nombre}`, e.abiertos, 'tickets', opHoras(e.abiertos, `abiertos de ${e.nombre}`))} h requeridas de ${fmt.format(e.dispH)} h disponibles · ${num(e.backlogN, `Abiertos · ${e.nombre}`, e.abiertos, 'tickets')} abiertos${e.supuesto ? ' · <span class="supuesto">reparto supuesto</span>' : ''}</div>
         ${sparkline(e.proyeccion)}
         <div class="nota" style="margin:2px 0 0">${e.sinDatos ? 'Sin esfuerzo en el catálogo: no se puede proyectar' : e.diaVacio > 0 ? `La fila se vacía el ${isoDay(M.dias[e.diaVacio - 1])}` : e.backlogH === 0 ? 'Sin fila' : `Quedan ${fmt.format(e.proyeccion[e.proyeccion.length - 1])} h en fila al final del horizonte`}</div>
         ${e.alertas.length ? `<ul>${e.alertas.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
@@ -1089,8 +1118,8 @@ function vistaCapacidad(M, raw) {
       <tbody>${[...M.personas].sort((a, b) => (b.util ?? 0) - (a.util ?? 0)).map(p => `<tr>
         <td>${esc(p.nombre)}</td><td class="izq">${esc(p.equipo)}</td><td>${pct(p.foco)}</td>
         <td>${p.ausenciasH ? `<span class="pill">${fmt.format(p.ausenciasH)} h fuera</span>` : 0}</td>
-        <td>${fmt.format(p.dispH)}</td><td>${num(fmt.format(p.reqH), `Horas requeridas · ${p.nombre}`, p.lAbiertos, 'tickets', ts => ts.reduce((a, t) => a + (t.horas || 0), 0))}</td>
-        <td><span class="pill ${p.util == null || (p.backlogN && p.sinEsfuerzo === p.backlogN) ? 'mute' : p.util > 1 ? 'bad' : p.util > 0.85 ? 'warn' : 'ok'}">${p.backlogN && p.sinEsfuerzo === p.backlogN ? 'Sin esfuerzo' : num(pct(p.util), `Utilización · ${p.nombre}`, p.lAbiertos, 'tickets')}</span></td>
+        <td>${fmt.format(p.dispH)}</td><td>${num(fmt.format(p.reqH), `Horas requeridas · ${p.nombre}`, p.lAbiertos, 'tickets', opHoras(p.lAbiertos, `abiertos de ${p.nombre}`))}</td>
+        <td><span class="pill ${p.util == null || (p.backlogN && p.sinEsfuerzo === p.backlogN) ? 'mute' : p.util > 1 ? 'bad' : p.util > 0.85 ? 'warn' : 'ok'}">${p.backlogN && p.sinEsfuerzo === p.backlogN ? 'Sin esfuerzo' : num(pct(p.util), `Utilización · ${p.nombre}`, p.lAbiertos, 'tickets', opUtil(p.lAbiertos, p.nombre, p.reqH, p.dispH))}</span></td>
         <td>${num(p.backlogN, `Abiertos · ${p.nombre}`, p.lAbiertos, 'tickets')}${p.sinEsfuerzo ? ` <small>(${p.sinEsfuerzo} sin esfuerzo)</small>` : ''}</td>
         <td>${p.ticketsQueCaben ?? '—'}</td><td>${fd(p.colaDias)}</td><td>${fd(p.diasVaciar)}</td></tr>`).join('')}</tbody>
     </table></div>`)}

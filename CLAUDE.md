@@ -119,8 +119,12 @@ Aplican a toda vista nueva, no solo a las existentes.
    exacta de registros que lo forman. Se construye con el helper `num(texto, título,
    registros, tipo, calc)`: el panel dice qué se ve y cuántos registros son, se ordena
    por columna, se cierra con Esc o con su botón y devuelve el foco. `calc` recalcula la
-   cifra desde los registros; **si no coincide con el número clicado, el panel lo dice en
-   rojo**. Los números clicables llevan subrayado de puntos. Si una cifra no tiene lista
+   cifra desde los registros. **La comprobación de que el total cuadre aplica solo a
+   conteos.** Un número derivado (mediana, promedio, porcentaje, horas, SLA, utilización,
+   días) no se cuenta contra la lista: el panel explica cómo se calculó, ordena por el
+   campo relevante y resalta el registro que lo marca. El panel de tickets muestra
+   siempre las nueve columnas; el asunto se trunca con el texto completo en el title y
+   **nunca se esconden las columnas de números**. Los números clicables llevan subrayado de puntos. Si una cifra no tiene lista
    detrás (Goal, Delta), no se vuelve clicable.
 
 ## Capacidad por pipeline
