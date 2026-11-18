@@ -343,7 +343,10 @@ function construirModelo(raw, opciones) {
       p.pesosSupuestos = false;
     } else if ((p.equipo || '').includes('/')) {
       const partes = p.equipo.split('/').map(x => x.trim()).filter(Boolean);
-      const recientes = tickets.filter(t => t.owner_id === p.owner_id && t.creado28 && t.equipo);
+      // Lo que la persona trabajó, no lo que se creó: los abiertos de hoy más los que
+      // cerró en 28 días. Así cuenta la revisión que le llega por reasignación.
+      const recientes = tickets.filter(t => t.owner_id === p.owner_id && t.equipo
+        && (t.abierto || t.cerrado28));
       const porPipe = groupBy(recientes, t => t.equipo);
       const n = recientes.length;
       p.pesos = n
@@ -397,7 +400,7 @@ function construirModelo(raw, opciones) {
     if (e.concentracion >= 0.7 && e.backlogN >= 5 && ps.length > 1) e.alertas.push(`${e.top.nombre} tiene ${pct(e.concentracion)} de los abiertos`);
     if (ps.length === 1 && e.backlogN >= 5) e.alertas.push(`Depende de una sola persona (${e.top.nombre})`);
     if (!ps.length && e.backlogN) e.alertas.push('Nadie tiene capacidad asignada a este pipeline');
-    if (e.supuesto) e.alertas.push('Parte de la capacidad se repartió por la mezcla de tickets de 28 días, no por porcentajes cargados');
+    if (e.supuesto) e.alertas.push('Parte de la capacidad se repartió por la mezcla de tickets que esas personas trabajaron (abiertos hoy más cerrados en 28 días), no por porcentajes cargados');
     if (e.sinEsfuerzo) e.alertas.push(`${e.sinEsfuerzo} abiertos sin esfuerzo en el catálogo: la carga real es mayor`);
     e.sinDatos = e.backlogN > 0 && e.sinEsfuerzo === e.backlogN;
     e.nivel = e.sinDatos ? 'mute' : e.util == null || e.util > 1 ? 'bad' : e.util > 0.85 || e.alertas.length > 1 ? 'warn' : 'ok';
@@ -659,7 +662,7 @@ const DEF = {
   goal: 'La meta del mes para el segmento elegido, de la tabla metas. Si ese mes no está cargado, se usa la meta por defecto de config.js.',
   forecast: 'Sitios del mes que la capacidad actual alcanza a entregar: los que ya están instalados, más los que todavía tienen tiempo. Un sitio tiene tiempo si la cola más lenta de sus tickets abiertos (días de fila de su owner + el SLA que le queda) cabe en los días hábiles que faltan para su fecha de instalación.',
   real: 'Sitios del mes que ya llegaron a una etapa marcada como instalada en etapas_deal.',
-  delta: 'Forecast menos Goal. En negativo, la capacidad actual no alcanza la meta del mes.',
+  delta: 'Forecast menos Goal. Se arma de dos partes que suman el delta: la brecha de plan (sitios que ni siquiera tienen fecha en el mes) y la brecha de capacidad (comprometidos que no entran por fila y SLA).',
   plan: 'Todos los sitios con fecha de instalación dentro del mes, estén instalados o no.',
   abiertos: 'Tickets sin fecha de cierre en la foto más reciente. No incluye los que cuelgan solo de deals en etapa inactiva.',
   vencidos: 'Tickets abiertos cuya edad en días hábiles ya pasó el SLA de su tipo.',
@@ -741,6 +744,13 @@ const COLS = {
     ['inst', 'Instalación', d => esc(d.fecha_instalacion || '—'), d => d.fecha_instalacion || ''],
   ],
 };
+// El Delta no es una lista de registros sino una brecha: se descompone en sus dos
+// partes, que por construcción suman exactamente el delta.
+function num_delta(texto, titulo, d) {
+  const id = 'd' + (++drillSeq);
+  DRILL.set(id, { titulo, tipo: 'delta', desglose: d, registros: d.fuera, mostrado: texto, calc: null });
+  return `<button class="num" type="button" data-d="${id}">${texto}</button>`;
+}
 const PANEL = { id: null, orden: null, asc: true, origen: null };
 function abrirDetalle(id, boton) {
   const d = DRILL.get(id);
@@ -761,8 +771,9 @@ function cerrarDetalle() {
 function pintarDetalle() {
   const d = DRILL.get(PANEL.id);
   if (!d) return;
+  document.getElementById('pd-t').textContent = d.titulo;
   const cols = COLS[d.tipo] || COLS.tickets;
-  let filas = [...d.registros];
+  let filas = [...(d.registros || [])];
   if (PANEL.orden) {
     const c = cols.find(x => x[0] === PANEL.orden);
     if (c) filas.sort((a, b) => {
@@ -775,10 +786,28 @@ function pintarDetalle() {
   const calculado = d.calc ? d.calc(d.registros) : d.registros.length;
   const mostrado = Number(String(d.mostrado).replace(/[^0-9.-]/g, ''));
   const cuadra = !Number.isFinite(mostrado) || Math.abs(calculado - mostrado) < 0.05;
-  document.getElementById('pd-t').textContent = d.titulo;
   document.getElementById('pd-n').innerHTML = `${fmt.format(d.registros.length)} ${d.registros.length === 1 ? 'registro' : 'registros'}`
     + (d.calc ? ` · suman ${fmt1.format(calculado)}` : '')
     + (cuadra ? '' : `<span class="pd-mal">No cuadra: la cifra dice ${esc(d.mostrado)} y la lista da ${fmt1.format(calculado)}</span>`);
+  if (d.tipo === 'delta') {
+    const g = d.desglose;
+    const sig = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt1.format(Math.abs(n));
+    const suma = g.aportePlan + g.aporteCapacidad;
+    const cuadraD = Math.abs(suma - g.delta) < 0.05;
+    document.getElementById('pd-n').innerHTML = `El delta se arma de dos partes${cuadraD ? '' : '<span class="pd-mal">No cuadra: las partes dan ' + fmt1.format(suma) + ' y el delta es ' + fmt1.format(g.delta) + '</span>'}`;
+    document.getElementById('pd-c').innerHTML = `<div class="tabla"><table>
+      <thead><tr><th class="izq">Parte</th><th>${esc(g.unidad)}</th><th class="izq">Qué es</th></tr></thead>
+      <tbody>
+        <tr><td class="izq">Brecha de plan</td><td>${sig(g.aportePlan)}</td><td class="izq">Goal ${fmt1.format(g.goal)} contra ${fmt1.format(g.plan)} comprometidos: faltan sitios con fecha de instalación en el mes.</td></tr>
+        <tr><td class="izq">Brecha de capacidad</td><td>${sig(g.aporteCapacidad)}</td><td class="izq">De los comprometidos, ${g.fuera.length} no entran en el forecast por fila y SLA.</td></tr>
+        <tr><td class="izq"><b>Delta</b></td><td><b>${sig(g.delta)}</b></td><td class="izq">Forecast ${fmt1.format(g.forecast)} contra goal ${fmt1.format(g.goal)}.</td></tr>
+      </tbody></table></div>
+      ${g.fuera.length ? `<h3 style="font-size:13px;margin:12px 0 6px">Los ${g.fuera.length} que no entran</h3><div class="tabla"><table>
+        <thead><tr><th class="izq">Sitio</th><th>kWp</th><th>Instalación</th><th class="izq">Por qué no entra</th></tr></thead>
+        <tbody>${g.fuera.map(r => `<tr><td class="izq">${hsDeal(r.deal.deal_id, r.deal.nombre || r.deal.deal_id)}</td><td>${fmt1.format(r.deal.kwp || 0)}</td><td>${esc(r.deal.fecha_instalacion || '—')}</td><td class="izq">${esc(r.motivo)}</td></tr>`).join('')}</tbody>
+      </table></div>` : ''}`;
+    return;
+  }
   document.getElementById('pd-c').innerHTML = `<div class="tabla"><table>
     <thead><tr>${cols.map(c => `<th class="izq"><button type="button" class="pd-ord" data-c="${c[0]}" aria-sort="${PANEL.orden === c[0] ? (PANEL.asc ? 'ascending' : 'descending') : 'none'}">${esc(c[1])}${PANEL.orden === c[0] ? (PANEL.asc ? ' ↑' : ' ↓') : ''}</button></th>`).join('')}</tr></thead>
     <tbody>${filas.map(r => `<tr>${cols.map(c => `<td class="izq">${c[2](r)}</td>`).join('')}</tr>`).join('')}</tbody>
@@ -846,7 +875,12 @@ function vistaMeta(M) {
       ${cifra('goal', v(M.goal), 'Company Goal', `Lo prometido para ${MESES[m - 1]} ${a}`, 'goal')}
       ${cifra('forecast', num(v(M.forecast), 'Forecast del mes', M.listas.forecast, 'sitios', calcU), 'Forecast', `Lo que la capacidad actual alcanza a entregar, de ${num(v(M.plan), 'Sitios comprometidos del mes', M.listas.plan, 'sitios', calcU)} comprometidos`, 'fc')}
       ${cifra('real', num(v(M.real), 'Real del mes', M.listas.real, 'sitios', calcU), 'Real', `${ESTADO.unidad === 'sitios' ? 'Sitios' : 'kWp'} que ya llegaron a instalación`, 're')}
-      ${cifra('delta ' + (delta < 0 ? 'neg' : 'pos'), (delta > 0 ? '+' : '') + fmt.format(delta), 'Delta', `Forecast contra goal, en ${u()}`)}
+      ${cifra('delta ' + (delta < 0 ? 'neg' : 'pos'), num_delta((delta > 0 ? '+' : '') + fmt.format(delta), 'Delta: de dónde sale la brecha', {
+        unidad: k === 'sitios' ? 'Sitios' : 'kWp', goal: M.goal[k], plan: M.plan[k], forecast: M.forecast[k],
+        // Las dos partes suman el delta por construcción: (plan−goal) + (forecast−plan) = forecast−goal.
+        aportePlan: M.plan[k] - M.goal[k], aporteCapacidad: M.forecast[k] - M.plan[k], delta,
+        fuera: M.fuera,
+      }), 'Delta', `Forecast contra goal, en ${u()}`)}
     </div>
     <div class="barra" role="img" aria-label="Real ${v(M.real)}, forecast ${v(M.forecast)} y goal ${v(M.goal)} ${u()}">
       <div class="fc" style="width:${M.forecast[k] / tope * 100}%"></div>
