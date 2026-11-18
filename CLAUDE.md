@@ -231,6 +231,20 @@ Aplican a toda vista nueva, no solo a las existentes.
 - La tabla de Flujo muestra **tres escenarios por etapa**: Real en las semanas pasadas,
   Goal y Forecast en las futuras, con la brecha Goal − Forecast al pie de cada celda.
   Arriba, una frase por cada brecha de 5 sitios o más.
+- **2.01 no es parte de la cadena**: es el filtro de calidad de los listados
+  (`config.js > filtroListados`). De cada 100 RPU cargados, 9 llegan a levantamiento.
+  La cadena del pronóstico empieza en 2.02.
+- **Las tasas de conversión medidas mandan donde el paso va en un solo sentido**
+  (2.02, 2.03, 2.12, 2.14, marcadas `convFuente: 'medida'`). Las de 2.10 y 2.13 se
+  quedaron en las del Reverse Eng Model porque medían **más de 100 %**: hay deals que
+  entran a una etapa antes que a la anterior, o sea movimientos hacia atrás.
+- **La salida de una etapa puede bifurcarse** (`ramas`): de 2.02, el 66 % va a 2.03 y el
+  34 % directo a 2.10, con fracciones medidas.
+- **El Goal usa la tasa de punta a punta medida**, no el producto de las conversiones por
+  etapa: con bifurcaciones ese producto cuenta las pérdidas dos veces.
+- **La tabla de Flujo compara volumen** (sitios que faltan en el pipeline), y **«Lo que
+  pide la meta» compara capacidad** (horas). Son dos diagnósticos distintos y no deben
+  mezclarse en el mismo número.
 - El simulador cambia solo `ESTADO.sim`; nunca toca los datos.
 
 ## Reglas de trabajo

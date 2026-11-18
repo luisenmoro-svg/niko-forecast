@@ -860,6 +860,7 @@ function pronostico(M, sim, opciones) {
   const Meta = NIKO_MODELO.calcularMeta({
     ritmos, metaSemana: metaMes / 4.33, kwpPorSitio,
     semanas: CFG.semanasPronostico || 10, sla: slaDe, esfuerzo,
+    tasaPuntaAPunta: (CFG.tasaDesdeLevantamiento || {}).observada,
   });
 
   return { ...R, promesa: Prom, meta: Meta, metaMes, capSemana, entrada: nuevos, modoEntrada,
@@ -1385,8 +1386,13 @@ function ritmoInfo(etapaId) {
   const t = r.modo === 'cola'
     ? `Ritmo: capacidad de ${r.equipo}. Sale cuando se cierra su ticket de «${r.ticket}», así que depende de cuántos alcance a cerrar el equipo esa semana.`
     : `Ritmo: según proceso, ${r.dias} días hábiles del Reverse Eng Model${r.nota ? ` (${r.nota})` : ''}. No lo gobierna ningún ticket.`;
-  const conv = r.conversion != null && r.conversion < 1 ? ` Solo el ${Math.round(r.conversion * 100)} % sigue adelante.` : '';
-  return ` <button class="info" type="button" aria-label="De dónde sale su ritmo" data-def="${esc(t + conv)}">i</button>`;
+  const conv = r.conversion != null && r.conversion < 1
+    ? ` Solo el ${Math.round(r.conversion * 100)} % sigue adelante (${r.convFuente === 'medida' ? 'tasa medida con 12 meses de datos' : 'tasa del Reverse Eng Model'}).`
+    : '';
+  const ram = r.ramas && r.ramas.length > 1
+    ? ` De los que salen, ${r.ramas.map(x => `${Math.round(x.frac * 100)} %`).join(' y ')} se reparten entre las etapas siguientes, según lo medido.`
+    : '';
+  return ` <button class="info" type="button" aria-label="De dónde sale su ritmo" data-def="${esc(t + conv + ram)}">i</button>`;
 }
 
 function vistaFlujo(M, raw) {
@@ -1456,20 +1462,18 @@ function vistaFlujo(M, raw) {
     ${seccion('t0', 'Qué cambió desde T0', 'desdeT0',
       `${sem.length} fotos · total ${fmt.format(sem[sem.length - 1]?.sitios || 0)} sitios${sem.length > 1 ? ` (${(sem[sem.length - 1].sitios - sem[0].sitios) >= 0 ? '+' : '−'}${fmt.format(Math.abs(sem[sem.length - 1].sitios - sem[0].sitios))} desde T0)` : ''}`,
       fH, `${(() => {
-        const frases = [];
-        for (const e of etapas) {
-          let peor = null;
-          P.semanas.forEach((f, i) => {
-            const fc = (f.porEtapa[e.etapa_id] || {}).sitios || 0;
-            const g = (P.meta.semanas[i].porEtapa[e.etapa_id] || {}).sitios || 0;
-            const d = g - fc;
-            if (d > 0 && (!peor || d > peor.d)) peor = { d, g, fc, sem: i + 1 };
-          });
-          if (peor && peor.d >= 5) frases.push(`En <b>${esc(e.etiqueta)}</b>, la meta pide ${fmt1.format(peor.g)} sitios en ${peor.sem}S y la capacidad llega a ${fmt1.format(peor.fc)}: <b>faltan ${fmt1.format(peor.d)}</b>.`);
-        }
-        return frases.length
-          ? `<div class="aviso"><b>Dónde la meta pide más de lo que la capacidad alcanza:</b><ul style="margin:4px 0 0;padding-left:18px">${frases.slice(0, 5).map(f => `<li>${f}</li>`).join('')}</ul></div>`
-          : '<p class="nota">La capacidad alcanza lo que pide la meta en todas las etapas.</p>';
+        // Esta tabla compara VOLUMEN: cuántos sitios hay contra cuántos pediría la meta.
+        // No es falta de capacidad: eso se ve en «Lo que pide la meta», en horas.
+        const entranHoy = P.eReal ? P.eReal.sitios : null;
+        const pide = P.meta.entradaSemana;
+        const primera = (CFG.ritmoEtapas || [])[0] || {};
+        const filtro = CFG.filtroListados || {};
+        return `<div class="aviso"><b>Brecha de entrada, no de capacidad.</b>
+          Para la meta de ${fmt.format(P.metaMes)} sitios al mes deben entrar <b>${fmt1.format(pide)} sitios viables por semana</b> a ${esc(primera.cod || '')}`
+          + (entranHoy != null ? `; hoy entran <b>${fmt1.format(entranHoy)}</b>` : '; el ritmo de hoy todavía no es medible')
+          + `. ${entranHoy != null && entranHoy < pide ? `Faltan ${fmt1.format(pide - entranHoy)} por semana.` : ''}
+          <br><small>Los sitios parados por etapa son contexto: dicen dónde está hoy el pipeline, no cuánta gente falta. Las horas que exige la meta están en «Lo que pide la meta», en la pestaña de capacidad.</small></div>`
+          + (filtro.cohorte ? `<p class="fuente">Filtro de listados (${esc(filtro.cod)}): de ${fmt.format(filtro.cohorte.total)} RPU cargados hace 4 a 12 meses, ${fmt.format(filtro.cohorte.pasaron)} pasaron a levantamiento (${pct(filtro.tasa)}) y ${fmt.format(filtro.cohorte.muertos)} se descartaron. Esa etapa no es parte de la cadena de instalación.</p>` : '');
       })()}
       <div class="tabla"><table class="t0">
       <thead>
@@ -1636,7 +1640,11 @@ function vistaCapacidad(M, raw) {
       return seccion('pideMeta', 'Lo que pide la meta', 'pideMeta',
         faltan ? `${faltan} ${faltan === 1 ? 'equipo no alcanza' : 'equipos no alcanzan'}` : 'todos alcanzan',
         `Plan de ensueño · meta de ${fmt.format(P.metaMes)} sitios al mes · ${fmt1.format(P.meta.entradaSemana)} sitios deben entrar por semana`,
-        `<div class="tabla"><table>
+        `${(() => { const faltantes = filas.filter(f => f.pide > f.hay);
+          return faltantes.length
+            ? `<div class="aviso"><b>Brecha de capacidad, en horas.</b><ul style="margin:4px 0 0;padding-left:18px">${faltantes.slice(0, 5).map(f => `<li>Para la meta, <b>${esc(f.eq)}</b> necesita ${fmt.format(f.pide)} h por semana y tiene ${fmt.format(f.hay)}.</li>`).join('')}</ul></div>`
+            : '<p class="nota">Con la meta actual, todos los equipos alcanzan en horas.</p>'; })()}
+        <div class="tabla"><table>
           <thead><tr><th class="izq">Equipo</th><th>Pide la meta (h/sem)</th><th>Tiene (h/sem)</th><th>Diferencia</th></tr></thead>
           <tbody>${filas.map(f => `<tr>
             <td class="izq">${esc(f.eq)}</td>

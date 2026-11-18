@@ -29,12 +29,13 @@ window.NIKO_CONFIG = {
   // El modo cambia la PROMESA (secuencial suma SLA, paralelo toma el mayor); la
   // capacidad se limita siempre por el ticket más lento de la etapa.
   ritmoEtapas: [
-    { id: '1108691253', cod: '2.01', modo: 'proceso', dias: 9, conversion: 0.80, nota: 'avanza por lotes del engine' },
-    { id: '268239144', cod: '2.02', modo: 'cola', conversion: 0.65, diasRef: 15, tickets: [
+    { id: '268239144', cod: '2.02', modo: 'cola', conversion: 0.66, convFuente: 'medida', diasRef: 15,
+      ramas: [{ a: '1021672592', frac: 0.657 }, { a: '1036112428', frac: 0.343 }], tickets: [
       { tipo: 'Planning levantamiento', equipo: 'Planning', orden: 'sec' },
       { tipo: 'Ejecución levantamiento', equipo: 'LiveOps', orden: 'sec' },
     ] },
-    { id: '1021672592', cod: '2.03', modo: 'cola', conversion: 0.65, diasRef: 3, tickets: [
+    { id: '1021672592', cod: '2.03', modo: 'cola', conversion: 0.12, convFuente: 'medida', diasRef: 3,
+      ramas: [{ a: '1036112428', frac: 1 }], tickets: [
       { tipo: 'Diseño y adicionales finales', equipo: 'Design', orden: 'sec', revision: true },
       { tipo: 'Costeo final Overhaul', equipo: 'Quoting', orden: 'sec' },
     ] },
@@ -50,7 +51,7 @@ window.NIKO_CONFIG = {
       { tipo: 'Costeo final Overhaul', equipo: 'Quoting', orden: 'par' },
     ] },
     { id: '1036112433', cod: '2.11', modo: 'proceso', dias: 3, conversion: 0.90, nota: 'adecuaciones, si aplican' },
-    { id: '1020227700', cod: '2.12', modo: 'cola', conversion: 1, diasRef: 2, tickets: [
+    { id: '1020227700', cod: '2.12', modo: 'cola', conversion: 0.44, convFuente: 'medida', diasRef: 2, tickets: [
       { tipo: 'VoBo Scoop RFP', equipo: 'Quoting', orden: 'par' },
       { tipo: 'Procurement Quote', equipo: 'Procurement', orden: 'par' },
       { tipo: 'IX Quote', equipo: 'IX', orden: 'par' },
@@ -59,7 +60,7 @@ window.NIKO_CONFIG = {
     { id: '267654734', cod: '2.13', modo: 'cola', conversion: 1, diasRef: 3, tickets: [
       { tipo: 'Cierre de planeación', equipo: 'Planning', orden: 'sec' },
     ] },
-    { id: '1036112429', cod: '2.14', modo: 'proceso', dias: 2, conversion: 1, nota: 'espera de cuadrilla' },
+    { id: '1036112429', cod: '2.14', modo: 'proceso', dias: 2, conversion: 0.81, convFuente: 'medida', nota: 'espera de cuadrilla' },
   ],
   // Quién puede tomar cada tipo, del SKILLS del motor de Nikoengine
   // (lib/utils/motorOrden/config.ts). Donde no hay, se infiere de quién lo cierra.
@@ -78,6 +79,15 @@ window.NIKO_CONFIG = {
   },
   // Quién revisa (Under review). En HubSpot el ticket de Diseño se reasigna aquí.
   revisores: { 'Diseño y adicionales finales': ['80811360'] },       // Juneth
+
+  // 2.01 no es parte del proceso de instalación: es el filtro de calidad de los
+  // listados que entrega el cliente (Revisión RPU manda a Inviable o Dormant).
+  // Cohorte de 4 a 12 meses: de 2,910 RPU cargados, 270 pasaron a levantamiento.
+  filtroListados: { id: '1108691253', cod: '2.01', tasa: 0.093, cohorte: { total: 2910, pasaron: 270, muertos: 2626, activos: 14 } },
+
+  // Punta a punta desde levantamiento, cohorte de 4 a 12 meses: 75 de 510 se
+  // instalaron; 65 siguen activos, así que el rango va de 14.7 % a 27.5 %.
+  tasaDesdeLevantamiento: { observada: 0.147, rangoAlto: 0.275, cohorte: { total: 510, instalados: 75, muertos: 370, activos: 65 } },
 
   // Mínimos para inferir de los datos cuando falta información cargada.
   minCierresEsfuerzo: 10,   // cierres en 28 días para medir el esfuerzo de un tipo

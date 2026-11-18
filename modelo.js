@@ -143,15 +143,21 @@
         const pasan = n * conv;
         perdio[r.id] = n - pasan;
         st.sitios -= n; st.kwp -= n * kps;
-        const sig = ritmos[i + 1];
-        if (!sig) {
+        // La salida puede bifurcarse: 2.02 manda una parte a 2.03 y otra directo a 2.10.
+        const destinos = (r.ramas && r.ramas.length)
+          ? r.ramas.map(x => ({ id: x.a, frac: x.frac }))
+          : (ritmos[i + 1] ? [{ id: ritmos[i + 1].id, frac: 1 }] : []);
+        if (!destinos.length) {
           instalados.sitios += pasan; instalados.kwp += pasan * kps;
           instalados.deCod = r.cod; instalados.deEtiqueta = r.cod;
           return;
         }
-        entra[sig.id] = entra[sig.id] || { sitios: 0, kwp: 0, deCod: r.cod };
-        entra[sig.id].sitios += pasan;
-        entra[sig.id].kwp += pasan * kps;
+        for (const d of destinos) {
+          if (!estado[d.id]) continue;   // rama hacia una etapa fuera de la cadena
+          entra[d.id] = entra[d.id] || { sitios: 0, kwp: 0, deCod: r.cod };
+          entra[d.id].sitios += pasan * d.frac;
+          entra[d.id].kwp += pasan * d.frac * kps;
+        }
       });
       for (const id in entra) { estado[id].sitios += entra[id].sitios; estado[id].kwp += entra[id].kwp; }
 
@@ -230,6 +236,8 @@
       return (sec + par) || r.diasRef || 5;
     };
     // Hacia atrás: para que salgan N de la última etapa, deben entrar N / conversión.
+    // Si se pasó una tasa de punta a punta medida, manda sobre el producto de las
+    // conversiones por etapa, que con bifurcaciones cuenta de más las pérdidas.
     const necesita = [];
     let n = e.metaSemana || 0;
     for (let i = ritmos.length - 1; i >= 0; i--) {
@@ -242,7 +250,16 @@
                          sitios: entran * (dias / 5), conversion: conv });
       n = entran;
     }
-    const entradaSemana = n;   // lo que debe entrar a la primera etapa
+    let entradaSemana = n;   // lo que debe entrar a la primera etapa
+    let entradaFuente = 'producto de las conversiones por etapa';
+    if (e.tasaPuntaAPunta > 0) {
+      // La medición de punta a punta no sufre el doble conteo de las ramas.
+      entradaSemana = (e.metaSemana || 0) / e.tasaPuntaAPunta;
+      entradaFuente = 'tasa medida de punta a punta';
+      // Se reescala la cadena para que su entrada coincida con la medida.
+      const factor = necesita[0] && necesita[0].entranSemana > 0 ? entradaSemana / necesita[0].entranSemana : 1;
+      for (const x of necesita) { x.entranSemana *= factor; x.sitios *= factor; }
+    }
 
     // Horas por semana que ese plan exige a cada equipo y a cada persona.
     const horasEquipo = {}, horasTipo = {};
@@ -272,7 +289,7 @@
                     sitios: Math.round(necesita.reduce((a, x) => a + x.sitios, 0)),
                     kwp: Math.round(necesita.reduce((a, x) => a + x.sitios, 0) * (e.kwpPorSitio || 0)) });
     }
-    return { semanas: salida, necesita: necesita, entradaSemana: entradaSemana,
+    return { semanas: salida, necesita: necesita, entradaSemana: entradaSemana, entradaFuente: entradaFuente,
              horasEquipo: horasEquipo, horasTipo: horasTipo };
   }
 
