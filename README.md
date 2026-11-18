@@ -41,14 +41,22 @@ Crea un repositorio privado y sube esta carpeta tal cual (incluida `.github/work
 
 1. Crea un proyecto y ejecuta `supabase/schema.sql` completo en el SQL Editor.
 2. En **Authentication > URL Configuration**, agrega la URL de Vercel (y `http://localhost:3000` si pruebas local) en *Site URL* y *Redirect URLs*.
-3. Llena las tablas en el Table Editor (o importa un CSV exportado del Tickets Manual):
+3. En **Authentication > Providers**, activa **Google** y pega el Client ID y el Client
+   Secret de un OAuth client de Google Cloud. En ese client, la *Authorized redirect URI*
+   es `https://<proyecto>.supabase.co/auth/v1/callback`.
+
+   El acceso es **solo con Google**: el dashboard manda `hd=niko.mx` para que Google
+   proponga primero las cuentas del dominio, y al volver verifica el correo y cierra la
+   sesión si no es de `@niko.mx`. **No hace falta configurar SMTP**, porque ya no se
+   envían enlaces por correo.
+4. Llena las tablas en el Table Editor (o importa un CSV exportado del Tickets Manual):
    - `catalogo`: desde Tickets Catalog. El `segmento` debe ser **idéntico a la etiqueta**
      del pipeline de deal en HubSpot, que es lo que el script guarda en
      `deals_snapshot.segmento`. Los tres pipelines que se sincronizan se llaman
      `2. Niko - Enterprise`, `Sales SMBs` y `1.4 Niko - CS Installed Clients Pipeline`.
    - `personas`: desde Teams. `owner_id` es el `hubspot_owner_id`.
    - `ausencias`: una fila por persona y día.
-4. Después de la primera corrida del workflow, en `etapas_deal` marca `es_instalado = true` en la etapa de inicio de instalación (2.15).
+5. Después de la primera corrida del workflow, en `etapas_deal` marca `es_instalado = true` en la etapa de inicio de instalación (2.15).
 
 ### 3. Secretos en GitHub
 

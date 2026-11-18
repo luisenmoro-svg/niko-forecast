@@ -145,8 +145,7 @@ td:first-child small { display: block; }
 /* Acceso */
 .acceso { max-width: 512px; margin: 12vh auto 0; background: var(--hs-card); border: 1px solid var(--hs-border); border-radius: 12px; padding: 24px; box-shadow: var(--hs-shadow); }
 .acceso h1 { font-size: 20px; }
-.acceso form { display: flex; gap: 8px; margin-top: 12px; }
-.acceso input { flex: 1; }
+.acceso .primario { margin-top: 16px; width: 100%; }
 .estado { color: var(--hs-muted); font-size: 13px; margin-top: 12px; }
 .error { color: var(--hs-red); }
 
@@ -749,37 +748,50 @@ async function cargar() {
   }
 }
 
-function vistaAcceso(mensaje) {
+function vistaAcceso(mensaje, esError) {
   const dominio = CFG.dominioPermitido || 'niko.mx';
   document.getElementById('app').innerHTML = `
     <div class="acceso">
       <h1>Ticket System: capacidad y flujo</h1>
-      <p class="nota">Entra con tu correo de @${esc(dominio)}. Te mandamos un enlace de acceso.</p>
-      <form id="f-acceso">
-        <label for="correo" class="nota" hidden>Correo</label>
-        <input type="email" id="correo" required placeholder="tu.nombre@${esc(dominio)}" autocomplete="email">
-        <button class="primario" type="submit">Enviar enlace</button>
-      </form>
-      <p class="estado" id="estado-acceso">${mensaje ? esc(mensaje) : ''}</p>
+      <p class="nota">Entra con tu cuenta de Google de @${esc(dominio)}.</p>
+      <button class="primario" type="button" id="b-google">Entrar con Google</button>
+      <p class="estado${esError ? ' error' : ''}" id="estado-acceso">${mensaje ? esc(mensaje) : ''}</p>
     </div>`;
-  document.getElementById('f-acceso').addEventListener('submit', async e => {
-    e.preventDefault();
-    const correo = document.getElementById('correo').value.trim().toLowerCase();
+  document.getElementById('b-google').addEventListener('click', async () => {
     const estado = document.getElementById('estado-acceso');
-    if (!correo.endsWith('@' + dominio)) { estado.className = 'estado error'; estado.textContent = `Usa un correo de @${dominio}.`; return; }
-    const { error } = await sb.auth.signInWithOtp({ email: correo, options: { emailRedirectTo: location.origin + location.pathname } });
-    estado.className = error ? 'estado error' : 'estado';
-    estado.textContent = error ? error.message : `Enlace enviado a ${correo}. Ábrelo en este navegador.`;
+    estado.className = 'estado';
+    estado.textContent = 'Abriendo Google…';
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: location.origin + location.pathname,
+        queryParams: { hd: dominio, prompt: 'select_account' },
+      },
+    });
+    if (error) { estado.className = 'estado error'; estado.textContent = error.message; }
   });
+}
+
+// La sesión puede venir de cualquier cuenta de Google: RLS ya bloquea los datos,
+// esto es para que la persona entienda por qué no ve nada.
+async function sesionValida(session) {
+  const dominio = CFG.dominioPermitido || 'niko.mx';
+  const correo = (session && session.user && session.user.email || '').toLowerCase();
+  if (correo.endsWith('@' + dominio)) return true;
+  await sb.auth.signOut();
+  vistaAcceso(correo
+    ? `La cuenta ${correo} no es de @${dominio}. Cerramos la sesión: entra con tu cuenta de Niko.`
+    : `Esa cuenta no es de @${dominio}. Entra con tu cuenta de Niko.`, true);
+  return false;
 }
 
 async function iniciar() {
   if (DEMO) return cargar();
   sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
   const { data } = await sb.auth.getSession();
-  if (data.session) return cargar();
-  vistaAcceso();
-  sb.auth.onAuthStateChange((ev, session) => { if (session) cargar(); });
+  if (data.session) { if (await sesionValida(data.session)) return cargar(); }
+  else vistaAcceso();
+  sb.auth.onAuthStateChange(async (ev, session) => { if (session && await sesionValida(session)) cargar(); });
 }
 
 if (typeof document !== 'undefined') iniciar();

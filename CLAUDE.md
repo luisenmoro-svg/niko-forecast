@@ -5,7 +5,10 @@ Dashboard de **flujo, SLA y capacidad** del Ticket System de Niko.
 ## Arquitectura
 
 - **HTML estático** (`index.html`, un solo archivo) desplegado en **Vercel**, sin build.
-- Lee de **Supabase** con `supabase-js` + login por correo `@niko.mx` (RLS por dominio).
+- Lee de **Supabase** con `supabase-js` + **login con Google** (proveedor OAuth de
+  Supabase). El dashboard manda `hd=niko.mx` y, al volver, cierra la sesión si el correo
+  no es de `@niko.mx`; los datos ya los protege RLS por dominio. **No se usa SMTP**: se
+  quitaron los enlaces de acceso por correo.
 - Un workflow de **GitHub Actions** (`.github/workflows/sync.yml`, script `scripts/sync-hubspot.mjs`)
   toma la foto de HubSpot **dos veces al día** (7:00 y 13:00) y la escribe en Supabase
   con la service role key.
