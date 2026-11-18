@@ -741,7 +741,7 @@ async function cargar() {
     }
     if (!ESTADO.segmento) {
       const segs = [...new Set(ESTADO.raw.etapas.map(e => e.pipeline))];
-      ESTADO.segmento = segs.includes('Enterprise') ? 'Enterprise' : segs[0] || null;
+      ESTADO.segmento = segs.find(s => s.includes('Enterprise')) || segs[0] || null;
     }
     recalcular();
   } catch (err) {

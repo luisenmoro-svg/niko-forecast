@@ -42,7 +42,10 @@ Crea un repositorio privado y sube esta carpeta tal cual (incluida `.github/work
 1. Crea un proyecto y ejecuta `supabase/schema.sql` completo en el SQL Editor.
 2. En **Authentication > URL Configuration**, agrega la URL de Vercel (y `http://localhost:3000` si pruebas local) en *Site URL* y *Redirect URLs*.
 3. Llena las tablas en el Table Editor (o importa un CSV exportado del Tickets Manual):
-   - `catalogo`: desde Tickets Catalog. El `segmento` debe ser igual al nombre del pipeline de deal en HubSpot (por ejemplo «Enterprise» o «BD + SMBs»).
+   - `catalogo`: desde Tickets Catalog. El `segmento` debe ser **idéntico a la etiqueta**
+     del pipeline de deal en HubSpot, que es lo que el script guarda en
+     `deals_snapshot.segmento`. Los tres pipelines que se sincronizan se llaman
+     `2. Niko - Enterprise`, `Sales SMBs` y `1.4 Niko - CS Installed Clients Pipeline`.
    - `personas`: desde Teams. `owner_id` es el `hubspot_owner_id`.
    - `ausencias`: una fila por persona y día.
 4. Después de la primera corrida del workflow, en `etapas_deal` marca `es_instalado = true` en la etapa de inicio de instalación (2.15).
@@ -61,7 +64,7 @@ Variables opcionales (pestaña *Variables*):
 
 | Variable | Por defecto |
 |---|---|
-| `DEAL_PIPELINE_IDS` | `160230047,917378954,71905038` (Enterprise, BD + SMBs, O&M) |
+| `DEAL_PIPELINE_IDS` | `160230047,917378954,71905038` (`2. Niko - Enterprise`, `Sales SMBs`, `1.4 Niko - CS Installed Clients Pipeline`) |
 
 **`DEAL_KWP_PROPERTY` ya no se configura.** El script recorre una cascada fija de
 propiedades de kWp y se queda con la primera que trae valor, de la más firme a la

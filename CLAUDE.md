@@ -33,8 +33,11 @@ Escritas por el script: `snapshots`, `deals_snapshot`, `tickets_snapshot`, `etap
   `sla_dias` en días hábiles (**1 h = 0.125**, **1 día = 1**, jornada de 8 h).
   `estado` ∈ `firme` | `supuesto` | `por_definir`.
 - `personas`: la llave primaria `owner_id` es el **`hubspot_owner_id`**.
-- `segmento` debe coincidir con el nombre del pipeline de deal en HubSpot
-  (por ejemplo «Enterprise» o «BD + SMBs»).
+- `segmento` debe ser **idéntico a la etiqueta** del pipeline de deal en HubSpot:
+  el script escribe en `deals_snapshot.segmento` el label del pipeline
+  (`dealPipeLabel[...]`), no un nombre corto. Los tres que se sincronizan son
+  `2. Niko - Enterprise` (160230047), `Sales SMBs` (917378954) y
+  `1.4 Niko - CS Installed Clients Pipeline` (71905038).
 
 ## Look & feel
 
