@@ -2,7 +2,9 @@ name: Foto de HubSpot
 
 on:
   schedule:
-    - cron: '0 13,19 * * 1-5'   # 7:00 y 13:00 hora CDMX, lunes a viernes
+    # Minuto 17 a propósito: los crons en punto de hora caen en la franja más
+    # congestionada de GitHub y se retrasan o se descartan.
+    - cron: '17 13,19 * * 1-5'  # 7:17 y 13:17 hora CDMX, lunes a viernes
   workflow_dispatch:            # botón "Run workflow" para correrlo a mano
 
 jobs:

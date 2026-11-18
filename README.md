@@ -92,6 +92,9 @@ La propiedad de la que salió cada valor queda guardada en `deals_snapshot.kwp_f
 
 Corre el workflow a mano una vez desde **Actions > Foto de HubSpot > Run workflow**.
 
+La agenda es `17 13,19 * * 1-5` (7:17 y 13:17 CDMX, lunes a viernes). El minuto 17 es
+a propósito: GitHub retrasa o descarta los crons que caen en punto de hora.
+
 ### 4. Vercel
 
 1. Edita `config.js` con la URL y la **anon key** de Supabase.
