@@ -13,9 +13,13 @@ window.NIKO_CONFIG = {
   gruposEtapas: [
     { titulo: 'Análisis y factibilidad', etapas: ['1108691253', '268239144', '1021672592', '267654738'] },
     { titulo: 'Aprobación e ingeniería', etapas: ['1418018399', '1036112428'] },
-    { titulo: 'Planeación',              etapas: ['1036112433', '1020227700', '267654734', '1036112429'] },
+    { titulo: 'Planeación',              etapas: ['1020227700', '267654734', '1036112429'] },
     { titulo: 'Instalación',             etapas: ['1020225614', '267654746', '1187009283', '1020326034', '1020326036'] },
   ],
+  // Etapas que no se grafican mientras estén vacías. Si algún día traen sitios o kWp,
+  // reaparecen en el grupo «Otras» para que no se pierdan.
+  // 1036112433 = 2.11 Adecuaciones pre-inst (Paola, 18 nov 2026).
+  etapasOcultas: ['1036112433'],
   // Etapas de post-instalación: se grafican aparte para que no aplasten la cadena.
   // Siguen contando en Real. Hoy: 2.21 Recently Installed y 2.23 O&M - Activo.
   etapasPostInstalacion: ['1109385340', '1109385341'],

@@ -55,7 +55,9 @@ Escritas por el script: `snapshots`, `deals_snapshot`, `tickets_snapshot`, `etap
     uno compartido con un deal vivo sigue contando.
 - `config.js > gruposEtapas` parte la cadena en filas por sección del pipeline, cada una
   con su propia escala; una etapa que no esté en ningún grupo cae en «Otras» y nunca
-  desaparece. `config.js > etapasPostInstalacion` lista las que van en la zona punteada
+  desaparece. `config.js > etapasOcultas` esconde una etapa **solo mientras esté vacía**:
+  si algún día trae sitios o kWp, reaparece en «Otras». Hoy: `1036112433` (2.11
+  Adecuaciones pre-inst), a petición de Paola. `config.js > etapasPostInstalacion` lista las que van en la zona punteada
   «post-instalación», para que su histórico no aplaste la cadena.
 - La tabla «Qué cambió desde T0» muestra **sitios y kWp lado a lado** y no depende del
   botón Sitios/kWp; ese botón solo afecta las cifras del mes y la cadena.
@@ -83,6 +85,28 @@ Cualquier cambio visual **debe seguir `Niko_Look_and_Feel.md`**. En corto:
   no extenderlo a secciones nuevas. Para éxito, usar check, texto explícito y neutros.
 - **Sin modo oscuro** ni fondos oscuros de página completa, degradados ni decoración.
 - Rojo únicamente para errores o bloqueos accionables, acompañado de texto.
+
+## Reglas de presentación (Paola, 18 nov 2026) — permanentes
+
+Aplican a toda vista nueva, no solo a las existentes.
+
+1. **Todo colapsado.** Solo el bloque Goal/Forecast/Real/Delta queda siempre visible.
+   Las demás secciones nacen cerradas y se abren con clic en su encabezado. Cada
+   encabezado cerrado lleva una línea de resumen con sus números clave. El estado se
+   recuerda por persona en `localStorage` (`niko.secciones`), siempre en try/catch.
+   El encabezado es un `button` con `aria-expanded`.
+2. **Cada métrica dice qué es.** Toda métrica, KPI y encabezado de columna lleva un ⓘ
+   con su definición corta en `DEF` (index.html): qué es, cómo se calcula y qué incluye,
+   en lenguaje simple. Funciona con cursor, teclado y toque. No volver a poner párrafos
+   explicativos largos: esa información vive en el ⓘ.
+3. **Fuente y actualización.** Cada sección dice de dónde salen sus datos y cuándo se
+   actualizaron, en una línea pequeña (`.fuente`). HubSpot usa `snapshots.creado` en
+   hora CDMX; catálogo, personas y metas usan su columna `actualizado_en`.
+4. **Todo lo de HubSpot es un vínculo.** Tickets a `record/0-5/{id}` y deals o sitios a
+   `record/0-3/{id}`, portal de `config.js`, en pestaña nueva. Helpers `hsTicket()` y
+   `hsDeal()`. Aplica a todas las tablas y listas.
+5. **No desperdiciar espacio.** Densidad alta: márgenes chicos, tarjetas bajas, tablas
+   compactas, controles en una sola fila cuando quepan.
 
 ## Reglas de trabajo
 

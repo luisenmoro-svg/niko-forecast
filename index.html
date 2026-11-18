@@ -95,6 +95,35 @@ button.primario { background: var(--hs-ink); color: #fff; border-color: var(--hs
 .fuera-flujo .pista { min-height: 20px; }
 table.t0 th.par, table.t0 td.par { border-left: 1px solid var(--hs-border); }
 table.t0 th.sub { font-size: 11px; font-weight: 500; color: var(--hs-muted); }
+
+/* ---- Secciones colapsables ---- */
+.sec { margin-top: 10px; }
+.sec h2 { display: flex; align-items: center; gap: 6px; margin: 0; }
+.sec-t { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; background: none; border: 0; padding: 6px 0; font: inherit; font-size: 15px; font-weight: 600; color: var(--hs-text); cursor: pointer; text-align: left; }
+.sec-t:focus-visible { outline: 2px solid var(--hs-ink); outline-offset: 2px; border-radius: 4px; }
+.chev { flex: none; width: 0; height: 0; border-left: 5px solid var(--hs-muted); border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: transform .15s; }
+.sec-t[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.sec-n { flex: none; }
+.sec-s { font-weight: 400; font-size: 13px; color: var(--hs-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sec-s::before { content: '· '; }
+.sec-c { padding-bottom: 4px; }
+.fuente { margin: 0 0 8px; font-size: 11px; color: var(--hs-muted); }
+
+/* ---- ⓘ definicion: funciona con cursor, teclado y toque ---- */
+.info { flex: none; width: 15px; height: 15px; padding: 0; border-radius: 50%; border: 1px solid var(--hs-border); background: var(--hs-card); color: var(--hs-muted); font: 600 10px/13px Lexend, system-ui, sans-serif; cursor: pointer; vertical-align: middle; position: relative; }
+.info:hover, .info:focus-visible, .info.abierto { background: var(--hs-ink); color: #fff; border-color: var(--hs-ink); }
+.info::after { content: attr(data-def); position: absolute; z-index: 30; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); width: max-content; max-width: 260px; padding: 8px 10px; background: var(--hs-ink); color: #fff; font: 400 12px/1.4 Lexend, system-ui, sans-serif; text-align: left; white-space: normal; border-radius: 6px; box-shadow: var(--hs-shadow); opacity: 0; visibility: hidden; transition: opacity .12s; pointer-events: none; }
+.info:hover::after, .info:focus-visible::after, .info.abierto::after { opacity: 1; visibility: visible; }
+th .info { margin-left: 2px; }
+.info.anc-izq::after { left: 0; transform: none; }
+.info.anc-der::after { left: auto; right: 0; transform: none; }
+
+/* ---- Densidad alta ---- */
+.sec h2, h2 { font-size: 15px; }
+.tabla table { font-size: 12px; }
+.tabla th, .tabla td { padding: 4px 6px; }
+.resumen { gap: 10px; }
+.equipo { padding: 8px 10px; }
 .grupo { margin-top: 14px; }
 .grupo:first-of-type { margin-top: 8px; }
 .grupo-t { font-size: 13px; font-weight: 600; color: var(--hs-muted); margin-bottom: 6px; }
@@ -451,7 +480,7 @@ async function cargarSupabase(t0) {
     traerTodo('catalogo', '*'), traerTodo('personas', '*'),
     traerTodo('ausencias', '*', q => q.gte('fecha', isoDay(HOY))),
     traerTodo('feriados', '*'), traerTodo('metas', '*'), traerTodo('etapas_deal', '*'),
-    traerTodo('snapshots', 'snapshot_date', q => q.order('snapshot_date')),
+    traerTodo('snapshots', 'snapshot_date,creado', q => q.order('snapshot_date')),
   ]);
   if (!snaps.length) throw new Error('Todavía no hay fotos de HubSpot. Corre el workflow «Foto de HubSpot» en GitHub Actions.');
   FERIADOS = new Set(feriados.map(f => toDay(f.fecha)));
@@ -463,7 +492,7 @@ async function cargarSupabase(t0) {
     traerTodo('tickets_snapshot', '*', q => q.eq('snapshot_date', ultima)),
     traerTodo('deals_snapshot', 'snapshot_date,deal_id,etapa_id,kwp,segmento', q => q.in('snapshot_date', semanas)),
   ]);
-  return { catalogo, personas, ausencias, feriados, metas, etapas, deals, tickets, series, semanas, fechas, ultima };
+  return { catalogo, personas, ausencias, feriados, metas, etapas, deals, tickets, series, semanas, fechas, ultima, snaps };
 }
 
 // ====================== Datos: ejemplo ======================
@@ -544,11 +573,109 @@ function datosEjemplo() {
       series.push({ snapshot_date: fecha, deal_id: d.deal_id, etapa_id: 'e' + codigos[idx], kwp: d.kwp, segmento: seg });
     }
   });
-  return { catalogo, personas, ausencias, feriados, metas, etapas, deals, tickets, series, semanas, fechas: semanas, ultima: semanas[semanas.length - 1] };
+  return { catalogo, personas, ausencias, feriados, metas, etapas, deals, tickets, series, semanas, fechas: semanas, ultima: semanas[semanas.length - 1],
+    snaps: semanas.map(f => ({ snapshot_date: f, creado: new Date(toDay(f) + 13 * 36e5).toISOString() })) };
 }
 
 // ====================== Vista ======================
 const ESTADO = { raw: null, modelo: null, tab: 'flujo', unidad: 'sitios', horizonte: CFG.horizonteDias || 10, mes: isoDay(HOY).slice(0, 7), segmento: null, t0: null };
+
+// ====================== Definiciones de cada métrica ======================
+// Lenguaje simple: qué es, cómo se calcula y qué incluye. Se muestran en el ⓘ.
+const DEF = {
+  goal: 'La meta del mes para el segmento elegido, de la tabla metas. Si ese mes no está cargado, se usa la meta por defecto de config.js.',
+  forecast: 'Sitios del mes que la capacidad actual alcanza a entregar: los que ya están instalados, más los que todavía tienen tiempo. Un sitio tiene tiempo si la cola más lenta de sus tickets abiertos (días de fila de su owner + el SLA que le queda) cabe en los días hábiles que faltan para su fecha de instalación.',
+  real: 'Sitios del mes que ya llegaron a una etapa marcada como instalada en etapas_deal.',
+  delta: 'Forecast menos Goal. En negativo, la capacidad actual no alcanza la meta del mes.',
+  plan: 'Todos los sitios con fecha de instalación dentro del mes, estén instalados o no.',
+  abiertos: 'Tickets sin fecha de cierre en la foto más reciente. No incluye los que cuelgan solo de deals en etapa inactiva.',
+  vencidos: 'Tickets abiertos cuya edad en días hábiles ya pasó el SLA de su tipo.',
+  riesgo: 'Tickets abiertos que llegaron al 80 % de su SLA pero todavía no lo pasan.',
+  cumplimiento: 'De los tickets cerrados en los últimos 28 días, el porcentaje que cerró dentro de su SLA.',
+  t0: 'Sitios y kWp que había en la foto que elegiste como línea base, arriba en el control T0.',
+  cadena: 'Sitios y kWp en cada etapa del deal, de la foto más reciente. Cada sección del pipeline tiene su propia escala: las alturas solo se comparan dentro de una misma fila.',
+  desdeT0: 'Cada columna es una foto semanal, con sitios y kWp lado a lado. El número pequeño es la diferencia contra la foto T0.',
+  sla: 'Días hábiles que el catálogo le da a ese tipo de ticket. 1 hora = 0.125 días, 1 día = 1. Vacío quiere decir que falta definirlo.',
+  edad: 'Días hábiles desde que se creó el ticket, sin contar fines de semana ni feriados, hasta su cierre o hasta hoy.',
+  edadMediana: 'La mitad de los tickets abiertos de ese tipo tiene menos edad que este número y la otra mitad más. En días hábiles.',
+  entraron28: 'Tickets de ese tipo creados en los últimos 28 días.',
+  salieron28: 'Tickets de ese tipo cerrados en los últimos 28 días.',
+  aTiempo: 'De los cerrados en los últimos 28 días, el porcentaje que cerró dentro de su SLA.',
+  horasFila: 'Horas de trabajo que representan los tickets abiertos de ese tipo, según el esfuerzo del catálogo.',
+  atraso: 'Días hábiles por encima del SLA.',
+  saturacion: 'Horas requeridas entre horas disponibles. Arriba de 100 % el equipo está saturado; arriba de 85 %, al límite.',
+  disponibles: 'FTE × % de foco × (jornada − horas de ausencia), sumado día por día en el horizonte elegido.',
+  requeridas: 'Horas de la fila abierta según el esfuerzo del catálogo, más lo que entra al ritmo de los últimos 28 días.',
+  foco: 'Parte de la jornada que esa persona dedica a tickets, de la tabla personas.',
+  ausencias: 'Horas que la persona no trabaja dentro del horizonte, de la tabla ausencias.',
+  leCaben: 'Cuántos tickets más, de su mezcla habitual, le caben antes de llegar al 100 % de utilización.',
+  diasCola: 'Días hábiles que tardaría en sacar su fila actual si no entrara nada nuevo.',
+  diasVaciar: 'Días hábiles hasta vaciar la fila contando lo que sigue entrando. «No se vacía» quiere decir que entra más de lo que sale.',
+  fueraForecast: 'Sitios con fecha de instalación este mes cuya cola más lenta es mayor que los días hábiles que faltan para instalar.',
+  diasRestantes: 'Días hábiles entre hoy y la fecha de instalación del sitio.',
+  porQue: 'El ticket que marca el cuello de botella y cuánto tiempo pide entre fila y SLA.',
+  ticketsInactivos: 'Tickets abiertos cuyos deals están todos en una etapa inactiva (Inviable, Dormant, Churned). No consumen capacidad: conviene cerrarlos.',
+  sinOwner: 'Tickets abiertos cuyo owner de HubSpot no está en la tabla personas, así que su trabajo no se le suma a nadie.',
+};
+function info(id) {
+  const t = DEF[id];
+  return t ? `<button class="info" type="button" aria-label="Qué es esto" data-def="${esc(t)}">i</button>` : '';
+}
+
+// ---------- Vínculos a HubSpot ----------
+function hsUrl(obj, id) {
+  return CFG.hubspotPortalId && !DEMO && id
+    ? `https://app.hubspot.com/contacts/${CFG.hubspotPortalId}/record/${obj}/${encodeURIComponent(id)}` : null;
+}
+function hsTicket(id, texto) {
+  const u = hsUrl('0-5', id);
+  const t = esc(texto == null ? id : texto);
+  return u ? `<a href="${u}" target="_blank" rel="noopener">${t}</a>` : t;
+}
+function hsDeal(id, texto) {
+  const u = hsUrl('0-3', id);
+  const t = esc(texto == null ? id : texto);
+  return u ? `<a href="${u}" target="_blank" rel="noopener">${t}</a>` : t;
+}
+
+// ---------- Secciones colapsables ----------
+const ABIERTAS = (() => {
+  try { return new Set(JSON.parse(localStorage.getItem('niko.secciones') || '[]')); }
+  catch (e) { return new Set(); }
+})();
+function guardarAbiertas() {
+  try { localStorage.setItem('niko.secciones', JSON.stringify([...ABIERTAS])); } catch (e) { /* modo privado */ }
+}
+function seccion(id, titulo, defId, resumen, fuente, contenido) {
+  const abierta = ABIERTAS.has(id);
+  return `<section class="sec" data-sec="${esc(id)}">
+    <h2><button class="sec-t" type="button" aria-expanded="${abierta}" aria-controls="sec-${esc(id)}">
+      <span class="chev" aria-hidden="true"></span><span class="sec-n">${esc(titulo)}</span>
+      ${resumen ? `<span class="sec-s">${resumen}</span>` : ''}
+    </button>${info(defId)}</h2>
+    <div class="sec-c" id="sec-${esc(id)}" ${abierta ? '' : 'hidden'}>
+      ${fuente ? `<p class="fuente">${fuente}</p>` : ''}
+      ${contenido}
+    </div></section>`;
+}
+
+// ---------- Fuente y fecha de actualización ----------
+function cdmx(iso) {
+  if (!iso) return 'sin fecha';
+  try {
+    return new Date(iso).toLocaleString('es-MX', { timeZone: 'America/Mexico_City',
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' CDMX';
+  } catch (e) { return String(iso); }
+}
+function fuenteHubspot(raw) {
+  const s = (raw.snaps || []).find(x => x.snapshot_date === raw.ultima);
+  return `HubSpot · foto del ${esc(raw.ultima)}, tomada el ${esc(cdmx(s && s.creado))}`;
+}
+function fuenteManual(filas, etiqueta) {
+  const fechas = (filas || []).map(f => f.actualizado_en).filter(Boolean).sort();
+  const ultima = fechas[fechas.length - 1];
+  return `Tickets Manual · ${esc(etiqueta)}${ultima ? ` · cargado el ${esc(cdmx(ultima))}` : ' · sin fecha de carga'}`;
+}
 
 function cifra(clase, n, l, s, mk) { return `<div class="cifra ${clase}"><div class="l">${mk ? `<i class="mk ${mk}" aria-hidden="true"></i>` : ''}${l}</div><div class="n">${n}</div><div class="s">${s}</div></div>`; }
 function v(x) { return ESTADO.unidad === 'sitios' ? fmt.format(x.sitios) : fmt.format(x.kwp); }
@@ -591,7 +718,10 @@ function vistaCadena(etapas) {
     etapas: cadena.filter(e => (g.etapas || []).includes(e.etapa_id)),
   }));
   const asignadas = new Set(grupos.flatMap(g => g.etapas.map(e => e.etapa_id)));
-  const sueltas = cadena.filter(e => !asignadas.has(e.etapa_id));
+  const ocultas = new Set(CFG.etapasOcultas || []);
+  // Una etapa oculta se esconde solo mientras esté vacía: con sitios o kWp reaparece en «Otras».
+  const sueltas = cadena.filter(e => !asignadas.has(e.etapa_id)
+    && !(ocultas.has(e.etapa_id) && !e.sitios && !e.kwp));
   // Una etapa sin grupo nunca se esconde: cae en «Otras».
   if (sueltas.length) grupos.push({ titulo: 'Otras', etapas: sueltas });
   const filas = grupos.filter(g => g.etapas.length);
@@ -611,8 +741,8 @@ function vistaCadena(etapas) {
     </div>`;
   };
   const maxFuera = Math.max(1, ...fuera.map(e => e[k]));
-  return `<div class="cadena"><h2>Dónde están hoy los sitios</h2>
-    <p class="nota">Sitios y kWp en cada etapa del deal, de la foto más reciente. Cada sección tiene su propia escala, así que las alturas solo se comparan dentro de una fila.</p>
+  // El título, la definición y la fuente los pone la sección que la envuelve.
+  return `<div class="cadena">
     ${filas.map(g => fila(g, 28)).join('')}
     ${fuera.length ? `<div class="fuera-flujo">
       <div class="grupo-t">Post-instalación</div>
@@ -631,25 +761,32 @@ function pillSla(t) {
 const slaTxt = d => d == null ? '—' : d < 1 ? `${fmt1.format(d * 8)} h` : `${fmt1.format(d)} d`;
 const marcaSupuesto = (txt, firme) => firme ? txt : `<span class="supuesto" title="Valor del catálogo aún no firmado">${txt}</span>`;
 
-function vistaFlujo(M) {
-  const R = M.resumen, k = ESTADO.unidad;
+function vistaFlujo(M, raw) {
+  const R = M.resumen;
   const sem = M.semanas;
   const etapas = M.porEtapa;
   const delta = (a, b) => { const d = a - b; return d === 0 ? '' : `<span class="dif">${d > 0 ? '+' : '−'}${fmt.format(Math.abs(d))}</span>`; };
   const vencidos = M.abiertos.filter(t => t.estadoSla === 'vencido').sort((a, b) => (b.edad - b.sla) - (a.edad - a.sla)).slice(0, 25);
-  const link = id => CFG.hubspotPortalId && !DEMO ? `<a href="https://app.hubspot.com/contacts/${CFG.hubspotPortalId}/record/0-5/${esc(id)}" target="_blank" rel="noopener">${esc(id)}</a>` : esc(id);
+  const fH = fuenteHubspot(raw);
+  const fCat = fuenteManual(raw.catalogo, 'catálogo de tickets');
+  const totalSitios = etapas.reduce((a, e) => a + e.sitios, 0);
+  const totalKwp = etapas.reduce((a, e) => a + e.kwp, 0);
+
   return `
     <div class="resumen">
-      <div><b>${fmt.format(R.abiertos)}</b><span>tickets abiertos</span></div>
-      <div><b>${fmt.format(R.vencidos)}</b><span>fuera de SLA</span></div>
-      <div><b>${fmt.format(R.riesgo)}</b><span>en riesgo (80 % del SLA)</span></div>
-      <div><b>${pct(R.cumplimiento)}</b><span>cerrados a tiempo, últimos 28 días</span></div>
-      <div><b>${fmt.format(R.sitiosT0)} · ${fmt.format(R.kwpT0)}</b><span>sitios y kWp en T0 (${esc(sem[0]?.fecha || '—')})</span></div>
+      <div><b>${fmt.format(R.abiertos)}</b><span>tickets abiertos ${info('abiertos')}</span></div>
+      <div><b>${fmt.format(R.vencidos)}</b><span>fuera de SLA ${info('vencidos')}</span></div>
+      <div><b>${fmt.format(R.riesgo)}</b><span>en riesgo ${info('riesgo')}</span></div>
+      <div><b>${pct(R.cumplimiento)}</b><span>cerrados a tiempo ${info('cumplimiento')}</span></div>
+      <div><b>${fmt.format(R.sitiosT0)} · ${fmt.format(R.kwpT0)}</b><span>sitios y kWp en T0 ${info('t0')}</span></div>
     </div>
 
-    <h2>Qué cambió desde T0</h2>
-    <p class="nota">Cada columna es una foto semanal, con sitios y kWp lado a lado. El número pequeño es la diferencia contra T0. Elige otra fecha de T0 arriba para mover la línea base.</p>
-    <div class="tabla"><table class="t0">
+    ${seccion('cadena', 'Dónde están hoy los sitios', 'cadena',
+      `${fmt.format(totalSitios)} sitios · ${fmt.format(totalKwp)} kWp`, fH, vistaCadena(etapas))}
+
+    ${seccion('t0', 'Qué cambió desde T0', 'desdeT0',
+      `${sem.length} fotos · total ${fmt.format(sem[sem.length - 1]?.sitios || 0)} sitios${sem.length > 1 ? ` (${(sem[sem.length - 1].sitios - sem[0].sitios) >= 0 ? '+' : '−'}${fmt.format(Math.abs(sem[sem.length - 1].sitios - sem[0].sitios))} desde T0)` : ''}`,
+      fH, `<div class="tabla"><table class="t0">
       <thead>
         <tr><th rowspan="2">Etapa</th>${sem.map(s => `<th colspan="2" class="par" title="${s.fecha}">${s.etiqueta} <small>${s.fecha.slice(5)}</small></th>`).join('')}</tr>
         <tr>${sem.map(() => '<th class="sub par">Sitios</th><th class="sub">kWp</th>').join('')}</tr>
@@ -661,12 +798,13 @@ function vistaFlujo(M) {
       <tfoot><tr><td>Total</td>${sem.map((s, i) => `
         <td class="par">${fmt.format(s.sitios)}${i ? delta(s.sitios, sem[0].sitios) : ''}</td>
         <td>${fmt.format(s.kwp)}${i ? delta(s.kwp, sem[0].kwp) : ''}</td>`).join('')}</tr></tfoot>
-    </table></div>
+    </table></div>`)}
 
-    <h2>Volumen y SLA por tipo de ticket</h2>
-    <p class="nota">Edad en días hábiles desde la creación. Los valores subrayados con puntos vienen de filas del catálogo que todavía no están firmadas.</p>
-    <div class="tabla"><table>
-      <thead><tr><th>Tipo</th><th class="izq">Equipo</th><th>SLA</th><th>Abiertos</th><th>Vencidos</th><th>En riesgo</th><th>Edad mediana</th><th>Entraron 28 d</th><th>Salieron 28 d</th><th>A tiempo</th><th>Horas en fila</th></tr></thead>
+    ${seccion('tipos', 'Volumen y SLA por tipo de ticket', null,
+      `${M.porTipo.length} tipos · ${fmt.format(R.vencidos)} vencidos`,
+      `${fH} · SLA y esfuerzo: ${fCat}`,
+      `<div class="tabla"><table>
+      <thead><tr><th>Tipo</th><th class="izq">Equipo</th><th>SLA ${info('sla')}</th><th>Abiertos ${info('abiertos')}</th><th>Vencidos ${info('vencidos')}</th><th>En riesgo ${info('riesgo')}</th><th>Edad mediana ${info('edadMediana')}</th><th>Entraron 28 d ${info('entraron28')}</th><th>Salieron 28 d ${info('salieron28')}</th><th>A tiempo ${info('aTiempo')}</th><th>Horas en fila ${info('horasFila')}</th></tr></thead>
       <tbody>${M.porTipo.map(r => `<tr>
         <td>${esc(r.tipo || 'Sin tipo')}<br><small>${esc(r.segmento || 'sin segmento')}</small></td>
         <td class="izq">${esc(r.equipo || '—')}</td>
@@ -678,17 +816,18 @@ function vistaFlujo(M) {
         <td>${r.creados28}</td><td>${r.cerrados28}</td>
         <td>${pct(r.cumplimiento)}</td>
         <td>${marcaSupuesto(fmt1.format(r.horasBacklog), r.firme)}</td></tr>`).join('')}</tbody>
-    </table></div>
+    </table></div>`)}
 
-    <h2>Tickets más atrasados</h2>
-    <p class="nota">Los 25 abiertos con más días por encima de su SLA.</p>
-    ${vencidos.length ? `<div class="tabla"><table>
-      <thead><tr><th>Ticket</th><th class="izq">Tipo</th><th class="izq">Owner</th><th class="izq">Etapa</th><th>Edad</th><th>SLA</th><th>Atraso</th><th>Estado</th></tr></thead>
-      <tbody>${vencidos.map(t => `<tr><td>${link(t.ticket_id)}<br><small>${esc(t.asunto || '')}</small></td>
+    ${seccion('atrasados', 'Tickets más atrasados', 'atraso',
+      vencidos.length ? `${vencidos.length} mostrados de ${fmt.format(R.vencidos)} vencidos` : 'ninguno fuera de SLA',
+      fH,
+      vencidos.length ? `<div class="tabla"><table>
+      <thead><tr><th>Ticket</th><th class="izq">Tipo</th><th class="izq">Owner</th><th class="izq">Etapa</th><th>Edad ${info('edad')}</th><th>SLA ${info('sla')}</th><th>Atraso ${info('atraso')}</th><th>Estado</th></tr></thead>
+      <tbody>${vencidos.map(t => `<tr><td>${hsTicket(t.ticket_id, t.ticket_id)}<br><small>${esc(t.asunto || '')}</small></td>
         <td class="izq">${esc(t.tipo)}</td><td class="izq">${esc(t.persona?.nombre || t.owner_id || 'Sin owner')}</td>
         <td class="izq">${esc(t.etapa_ticket)}</td><td>${t.edad} d</td><td>${slaTxt(t.sla)}</td>
         <td>${fmt1.format(t.edad - t.sla)} d</td><td>${pillSla(t)}</td></tr>`).join('')}</tbody>
-    </table></div>` : '<p class="nota">No hay tickets fuera de SLA.</p>'}`;
+    </table></div>` : '<p class="nota">No hay tickets fuera de SLA.</p>')}`;
 }
 
 function sparkline(puntos, capDia) {
@@ -701,15 +840,22 @@ function sparkline(puntos, capDia) {
     <path d="${d}" fill="none" stroke="${subeOBaja}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
 }
 
-function vistaCapacidad(M) {
+function vistaCapacidad(M, raw) {
   const H = M.dias.length;
   const fuera = M.metricas.fuera.slice(0, 20);
   const fd = x => x === Infinity ? 'No se vacía' : fmt1.format(x);
-  return `
-    <p class="nota">Horas disponibles = FTE × % de foco × (jornada − ausencias), día por día durante los próximos ${H} días hábiles (hasta el ${isoDay(M.dias[H - 1])}). Horas requeridas = fila abierta + lo que entra al ritmo de los últimos 28 días. La carga se asigna al owner real de HubSpot.</p>
+  const fH = fuenteHubspot(raw);
+  const fPer = fuenteManual(raw.personas, 'personas y jornada');
+  const fCat = fuenteManual(raw.catalogo, 'esfuerzo del catálogo');
+  const sat = M.equipos.filter(e => e.nivel === 'bad').length;
+  const lim = M.equipos.filter(e => e.nivel === 'warn').length;
 
-    <h2>Saturación por equipo</h2>
-    <div class="equipos">${M.equipos.map(e => `
+  return `
+    ${seccion('saturacion', 'Saturación por equipo', 'saturacion',
+      sat ? `${sat} ${sat === 1 ? 'equipo saturado' : 'equipos saturados'}${lim ? ` · ${lim} al límite` : ''}`
+          : lim ? `${lim} al límite` : 'ningún equipo saturado',
+      `${fH} · jornada: ${fPer} · ${fCat} · horizonte de ${H} días hábiles, hasta el ${esc(isoDay(M.dias[H - 1]))}`,
+      `<div class="equipos">${M.equipos.map(e => `
       <article class="equipo ${e.nivel}">
         <h3><span>${esc(e.nombre)}</span><span class="pill ${e.nivel}">${e.sinDatos ? 'Sin esfuerzo definido' : e.nivel === 'bad' ? 'Saturado' : e.nivel === 'warn' ? 'Al límite' : 'Con espacio'}</span></h3>
         <div class="util ${e.nivel === 'bad' ? 'bad' : ''}">${e.sinDatos ? '—' : pct(e.util)}</div>
@@ -719,37 +865,40 @@ function vistaCapacidad(M) {
         ${e.alertas.length ? `<ul>${e.alertas.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
       </article>`).join('')}
     </div>
-    ${M.sinPersona.length ? `<p class="aviso error">${M.sinPersona.length} tickets abiertos tienen un owner que no está en la tabla de personas, así que no cuentan en ninguna capacidad. Agrégalos en Supabase &gt; personas.</p>` : ''}
-    ${M.ticketsInactivos.length ? `<details class="aviso fuera">
-      <summary>${M.ticketsInactivos.length} tickets abiertos cuelgan de deals en etapa inactiva. No cuentan en la capacidad: conviene cerrarlos.</summary>
-      <div class="tabla"><table>
+    ${M.sinPersona.length ? `<p class="aviso error">${M.sinPersona.length} tickets abiertos tienen un owner que no está en la tabla de personas, así que no cuentan en ninguna capacidad. ${info('sinOwner')}</p>` : ''}`)}
+
+    ${M.ticketsInactivos.length ? seccion('zombis', 'Tickets en deals inactivos', 'ticketsInactivos',
+      `${M.ticketsInactivos.length} por cerrar`, fH,
+      `<div class="tabla"><table>
         <thead><tr><th class="izq">Ticket</th><th class="izq">Tipo</th><th class="izq">Owner</th><th class="izq">Etapa del deal</th></tr></thead>
         <tbody>${M.ticketsInactivos.map(t => `<tr>
-          <td class="izq">${esc(t.asunto || t.ticket_id)}</td>
+          <td class="izq">${hsTicket(t.ticket_id, t.asunto || t.ticket_id)}</td>
           <td class="izq">${esc(t.tipo || '—')}</td>
           <td class="izq">${esc(t.persona ? t.persona.nombre : (t.owner_id || 'sin owner'))}</td>
           <td class="izq">${esc(t.etapaDeal || '—')}</td></tr>`).join('')}</tbody>
-      </table></div>
-    </details>` : ''}
+      </table></div>`) : ''}
 
-    <h2>Por persona</h2>
-    <div class="tabla"><table>
-      <thead><tr><th>Persona</th><th class="izq">Equipo</th><th>Foco</th><th>Ausencias (h)</th><th>Disponibles (h)</th><th>Requeridas (h)</th><th>Utilización</th><th>Abiertos</th><th>Le caben</th><th>Días de cola</th><th>Días para vaciar</th></tr></thead>
+    ${seccion('personas', 'Por persona', null,
+      `${M.personas.length} personas · ${M.personas.filter(p => p.util != null && p.util > 1).length} arriba del 100 %`,
+      `${fH} · ${fPer} · ${fCat}`,
+      `<div class="tabla"><table>
+      <thead><tr><th>Persona</th><th class="izq">Equipo</th><th>Foco ${info('foco')}</th><th>Ausencias (h) ${info('ausencias')}</th><th>Disponibles (h) ${info('disponibles')}</th><th>Requeridas (h) ${info('requeridas')}</th><th>Utilización ${info('saturacion')}</th><th>Abiertos ${info('abiertos')}</th><th>Le caben ${info('leCaben')}</th><th>Días de cola ${info('diasCola')}</th><th>Días para vaciar ${info('diasVaciar')}</th></tr></thead>
       <tbody>${[...M.personas].sort((a, b) => (b.util ?? 0) - (a.util ?? 0)).map(p => `<tr>
         <td>${esc(p.nombre)}</td><td class="izq">${esc(p.equipo)}</td><td>${pct(p.foco)}</td>
-        <td>${p.ausenciasH ? `<span class="pill" title="Horas fuera en el horizonte">${fmt.format(p.ausenciasH)} h fuera</span>` : 0}</td>
+        <td>${p.ausenciasH ? `<span class="pill">${fmt.format(p.ausenciasH)} h fuera</span>` : 0}</td>
         <td>${fmt.format(p.dispH)}</td><td>${fmt.format(p.reqH)}</td>
         <td><span class="pill ${p.util == null || (p.backlogN && p.sinEsfuerzo === p.backlogN) ? 'mute' : p.util > 1 ? 'bad' : p.util > 0.85 ? 'warn' : 'ok'}">${p.backlogN && p.sinEsfuerzo === p.backlogN ? 'Sin esfuerzo' : pct(p.util)}</span></td>
-        <td>${p.backlogN}${p.sinEsfuerzo ? ` <small title="sin esfuerzo en el catálogo">(${p.sinEsfuerzo} sin esfuerzo)</small>` : ''}</td>
+        <td>${p.backlogN}${p.sinEsfuerzo ? ` <small>(${p.sinEsfuerzo} sin esfuerzo)</small>` : ''}</td>
         <td>${p.ticketsQueCaben ?? '—'}</td><td>${fd(p.colaDias)}</td><td>${fd(p.diasVaciar)}</td></tr>`).join('')}</tbody>
-    </table></div>
+    </table></div>`)}
 
-    <h2>Sitios comprometidos que no entran en el forecast</h2>
-    <p class="nota">Sitios con fecha de instalación este mes cuya cola más lenta (días de fila del owner + SLA restante del ticket) es mayor que los días hábiles que faltan para instalar.</p>
-    ${fuera.length ? `<div class="tabla"><table>
-      <thead><tr><th>Sitio</th><th>kWp</th><th>Instalación</th><th>Días hábiles restantes</th><th class="izq">Por qué no entra</th></tr></thead>
-      <tbody>${fuera.map(r => `<tr><td>${esc(r.deal.nombre)}</td><td>${fmt1.format(r.deal.kwp || 0)}</td><td>${esc(r.deal.fecha_instalacion)}</td><td>${r.diasRestantes}</td><td class="izq">${esc(r.motivo)}</td></tr>`).join('')}</tbody>
-    </table></div>` : '<p class="nota">Todos los sitios comprometidos del mes entran en el forecast.</p>'}`;
+    ${seccion('fuera', 'Sitios comprometidos que no entran en el forecast', 'fueraForecast',
+      fuera.length ? `${fuera.length} de ${M.metricas.fuera.length}` : 'todos entran',
+      fH,
+      fuera.length ? `<div class="tabla"><table>
+      <thead><tr><th>Sitio</th><th>kWp</th><th>Instalación</th><th>Días hábiles restantes ${info('diasRestantes')}</th><th class="izq">Por qué no entra ${info('porQue')}</th></tr></thead>
+      <tbody>${fuera.map(r => `<tr><td>${hsDeal(r.deal.deal_id, r.deal.nombre)}</td><td>${fmt1.format(r.deal.kwp || 0)}</td><td>${esc(r.deal.fecha_instalacion)}</td><td>${r.diasRestantes}</td><td class="izq">${esc(r.motivo)}</td></tr>`).join('')}</tbody>
+    </table></div>` : '<p class="nota">Todos los sitios comprometidos del mes entran en el forecast.</p>')}`;
 }
 
 function render() {
@@ -773,13 +922,12 @@ function render() {
     </header>
     ${DEMO ? '<p class="aviso"><span class="badge-nuevo">Ejemplo</span>Estos son datos de ejemplo. Llena config.js con tu proyecto de Supabase para ver los datos reales.</p>' : ''}
     ${vistaMeta(M.metricas)}
-    ${vistaCadena(M.porEtapa)}
     <div class="tabs" role="tablist">
       <button role="tab" id="t-flujo" aria-controls="p-flujo" aria-selected="${ESTADO.tab === 'flujo'}">Flujo y SLA</button>
       <button role="tab" id="t-cap" aria-controls="p-cap" aria-selected="${ESTADO.tab === 'cap'}">Capacidad y saturación</button>
     </div>
-    <section class="panel" id="p-flujo" role="tabpanel" aria-labelledby="t-flujo" ${ESTADO.tab === 'flujo' ? '' : 'hidden'}>${vistaFlujo(M)}</section>
-    <section class="panel" id="p-cap" role="tabpanel" aria-labelledby="t-cap" ${ESTADO.tab === 'cap' ? '' : 'hidden'}>${vistaCapacidad(M)}</section>`;
+    <section class="panel" id="p-flujo" role="tabpanel" aria-labelledby="t-flujo" ${ESTADO.tab === 'flujo' ? '' : 'hidden'}>${vistaFlujo(M, raw)}</section>
+    <section class="panel" id="p-cap" role="tabpanel" aria-labelledby="t-cap" ${ESTADO.tab === 'cap' ? '' : 'hidden'}>${vistaCapacidad(M, raw)}</section>`;
 
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   on('c-mes', 'change', e => { ESTADO.mes = e.target.value; recalcular(); });
@@ -790,6 +938,37 @@ function render() {
   on('t-flujo', 'click', () => { ESTADO.tab = 'flujo'; render(); });
   on('t-cap', 'click', () => { ESTADO.tab = 'cap'; render(); });
   on('c-salir', 'click', async () => { await sb.auth.signOut(); location.reload(); });
+
+  // Secciones colapsables: el estado se recuerda por persona en localStorage.
+  app.querySelectorAll('.sec-t').forEach(b => b.addEventListener('click', () => {
+    const sec = b.closest('.sec').dataset.sec;
+    const cuerpo = document.getElementById('sec-' + sec);
+    const abrir = b.getAttribute('aria-expanded') !== 'true';
+    b.setAttribute('aria-expanded', String(abrir));
+    cuerpo.hidden = !abrir;
+    if (abrir) ABIERTAS.add(sec); else ABIERTAS.delete(sec);
+    guardarAbiertas();
+  }));
+  // El globo se ancla al lado que quepa, para que no se corte contra el borde.
+  const anclar = b => {
+    const r = b.getBoundingClientRect();
+    b.classList.remove('anc-izq', 'anc-der');
+    if (r.left < 140) b.classList.add('anc-izq');
+    else if (window.innerWidth - r.right < 140) b.classList.add('anc-der');
+  };
+  // En celular no hay cursor: el ⓘ se abre al tocarlo y se cierra al tocar fuera.
+  app.querySelectorAll('.info').forEach(b => {
+    b.addEventListener('mouseenter', () => anclar(b));
+    b.addEventListener('focus', () => anclar(b));
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      anclar(b);
+      const ya = b.classList.contains('abierto');
+      app.querySelectorAll('.info.abierto').forEach(o => o.classList.remove('abierto'));
+      if (!ya) b.classList.add('abierto');
+    });
+  });
+  document.addEventListener('click', () => app.querySelectorAll('.info.abierto').forEach(o => o.classList.remove('abierto')), { once: false });
 }
 
 function recalcular() {
