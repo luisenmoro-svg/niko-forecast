@@ -81,18 +81,16 @@ button.primario { background: var(--hs-ink); color: #fff; border-color: var(--hs
 .cadena-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 @media (min-width: 768px) { .cadena-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 @media (min-width: 1280px) { .cadena-grid { grid-template-columns: repeat(10, minmax(0, 1fr)); } }
-.etapa { display: flex; flex-direction: column; min-height: 104px; padding: 7px 9px 8px; background: var(--hs-card); border: 1px solid var(--hs-border); border-top: 3px solid transparent; border-radius: 8px; }
+.etapa { display: flex; flex-direction: column; min-height: 0; padding: 7px 9px 8px; background: var(--hs-card); border: 1px solid var(--hs-border); border-top: 3px solid transparent; border-radius: 8px; }
 .etapa.inst { border-top-color: var(--hs-ink); }
 .etapa .e { font-size: 13px; font-weight: 600; }
 .etapa .tag { font-size: 10px; font-weight: 600; color: var(--hs-muted); }
 .etapa .v { font-weight: 600; font-size: 18px; margin-top: 2px; line-height: 1.15; }
 .etapa .k { color: var(--hs-muted); font-size: 12px; }
-.etapa .pista { flex: 1; display: flex; align-items: flex-end; margin-top: 6px; min-height: 28px; }
-.etapa .col { width: 100%; background: var(--hs-gull); border-radius: 4px 4px 0 0; min-height: 2px; }
+.etapa .t0d { margin-top: 4px; font-size: 11px; color: var(--hs-muted); }
 .fuera-flujo { margin-top: 12px; padding: 10px 10px 2px; border: 1px dashed var(--hs-border); border-radius: 8px; }
 .fuera-flujo .nota { margin: 0 0 8px; }
-.fuera-flujo .etapa { min-height: 88px; }
-.fuera-flujo .pista { min-height: 20px; }
+.fuera-flujo .etapa { min-height: 0; }
 table.t0 th.par, table.t0 td.par { border-left: 1px solid var(--hs-border); }
 table.t0 th.sub { font-size: 11px; font-weight: 500; color: var(--hs-muted); }
 
@@ -129,7 +127,6 @@ th .info { margin-left: 2px; }
 .grupo-t { font-size: 13px; font-weight: 600; color: var(--hs-muted); margin-bottom: 6px; }
 details.aviso.fuera > summary { cursor: pointer; font-weight: 600; }
 details.aviso.fuera .tabla { margin-top: 10px; }
-.etapa.inst .col { background: var(--hs-ink); }
 
 /* Pestañas */
 .tabs { display: flex; gap: 16px; margin-top: 32px; border-bottom: 1px solid var(--hs-border); }
@@ -593,7 +590,7 @@ const DEF = {
   riesgo: 'Tickets abiertos que llegaron al 80 % de su SLA pero todavía no lo pasan.',
   cumplimiento: 'De los tickets cerrados en los últimos 28 días, el porcentaje que cerró dentro de su SLA.',
   t0: 'Sitios y kWp que había en la foto que elegiste como línea base, arriba en el control T0.',
-  cadena: 'Sitios y kWp en cada etapa del deal, de la foto más reciente. Cada sección del pipeline tiene su propia escala: las alturas solo se comparan dentro de una misma fila.',
+  cadena: 'Sitios y kWp en cada etapa del deal, de la foto más reciente, agrupados por sección del pipeline. Cada tarjeta indica cuánto cambió contra la foto T0.',
   desdeT0: 'Cada columna es una foto semanal, con sitios y kWp lado a lado. El número pequeño es la diferencia contra la foto T0.',
   sla: 'Días hábiles que el catálogo le da a ese tipo de ticket. 1 hora = 0.125 días, 1 día = 1. Vacío quiere decir que falta definirlo.',
   edad: 'Días hábiles desde que se creó el ticket, sin contar fines de semana ni feriados, hasta su cierre o hasta hoy.',
@@ -704,15 +701,15 @@ function vistaMeta(M) {
   </section>`;
 }
 
-function vistaCadena(etapas) {
+function vistaCadena(etapas, sem) {
   const k = ESTADO.unidad;
-  // Las etapas de post-instalación salen de config.js: acumulan histórico y, en la
-  // misma escala, aplastan la cadena. Se muestran aparte, como ruta fuera del flujo.
+  // Las etapas de post-instalación salen de config.js: acumulan histórico y conviene
+  // leerlas aparte de la cadena viva. Se muestran como ruta fuera del flujo.
   const post = new Set(CFG.etapasPostInstalacion || []);
   const cadena = etapas.filter(e => !post.has(e.etapa_id));
   const fuera = etapas.filter(e => post.has(e.etapa_id));
 
-  // Una fila por sección del pipeline, cada una con su propia escala.
+  // Una fila por sección del pipeline.
   const grupos = (CFG.gruposEtapas || []).map(g => ({
     titulo: g.titulo,
     etapas: cadena.filter(e => (g.etapas || []).includes(e.etapa_id)),
@@ -726,28 +723,38 @@ function vistaCadena(etapas) {
   if (sueltas.length) grupos.push({ titulo: 'Otras', etapas: sueltas });
   const filas = grupos.filter(g => g.etapas.length);
 
-  const columna = (e, maximo, alto) => `
+  // Cambio contra la foto T0. Sin segunda foto o sin cambio, no se escribe nada:
+  // una barra sin meta contra qué compararse no decía nada.
+  const base = (sem && sem.length > 1) ? sem[0].porEtapa : null;
+  const signo = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt.format(Math.abs(n));
+  const desdeT0 = e => {
+    if (!base) return '';
+    const b = base[e.etapa_id] || { sitios: 0, kwp: 0 };
+    const ds = e.sitios - b.sitios, dk = e.kwp - b.kwp;
+    if (!ds && !dk) return '';
+    // Sin color: que una etapa baje suele querer decir que los sitios avanzaron,
+    // no que algo esté mal. El rojo se reserva para errores (Niko_Look_and_Feel.md).
+    return `<div class="t0d">${signo(ds)} ${Math.abs(ds) === 1 ? 'sitio' : 'sitios'} · ${signo(dk)} kWp desde T0</div>`;
+  };
+
+  const tarjeta = e => `
       <div class="etapa ${e.es_instalado ? 'inst' : ''}" title="${esc(e.etiqueta)}: ${nSitios(e.sitios)}, ${fmt1.format(e.kwp)} kWp">
         <div class="e">${esc(e.etiqueta)}</div>
         <div class="v">${k === 'sitios' ? e.sitios : fmt.format(e.kwp)}</div>
         <div class="k">${k === 'sitios' ? fmt.format(e.kwp) + ' kWp' : nSitios(e.sitios)}</div>
-        <div class="pista"><div class="col" style="height:${Math.round(e[k] / maximo * alto)}px"></div></div>
+        ${desdeT0(e)}
       </div>`;
-  const fila = (g, alto) => {
-    const max = Math.max(1, ...g.etapas.map(e => e[k]));
-    return `<div class="grupo">
+  const fila = g => `<div class="grupo">
       <div class="grupo-t">${esc(g.titulo)}</div>
-      <div class="cadena-grid">${g.etapas.map(e => columna(e, max, alto)).join('')}</div>
+      <div class="cadena-grid">${g.etapas.map(tarjeta).join('')}</div>
     </div>`;
-  };
-  const maxFuera = Math.max(1, ...fuera.map(e => e[k]));
   // El título, la definición y la fuente los pone la sección que la envuelve.
   return `<div class="cadena">
-    ${filas.map(g => fila(g, 28)).join('')}
+    ${filas.map(fila).join('')}
     ${fuera.length ? `<div class="fuera-flujo">
       <div class="grupo-t">Post-instalación</div>
-      <p class="nota">Ya instalados, con su propia escala. Cuentan en Real, no en la cadena.</p>
-      <div class="cadena-grid">${fuera.map(e => columna(e, maxFuera, 20)).join('')}</div>
+      <p class="nota">Ya instalados. Cuentan en Real, no en la cadena.</p>
+      <div class="cadena-grid">${fuera.map(tarjeta).join('')}</div>
     </div>` : ''}
   </div>`;
 }
@@ -782,7 +789,7 @@ function vistaFlujo(M, raw) {
     </div>
 
     ${seccion('cadena', 'Dónde están hoy los sitios', 'cadena',
-      `${fmt.format(totalSitios)} sitios · ${fmt.format(totalKwp)} kWp`, fH, vistaCadena(etapas))}
+      `${fmt.format(totalSitios)} sitios · ${fmt.format(totalKwp)} kWp`, fH, vistaCadena(etapas, sem))}
 
     ${seccion('t0', 'Qué cambió desde T0', 'desdeT0',
       `${sem.length} fotos · total ${fmt.format(sem[sem.length - 1]?.sitios || 0)} sitios${sem.length > 1 ? ` (${(sem[sem.length - 1].sitios - sem[0].sitios) >= 0 ? '+' : '−'}${fmt.format(Math.abs(sem[sem.length - 1].sitios - sem[0].sitios))} desde T0)` : ''}`,

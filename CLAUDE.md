@@ -61,9 +61,12 @@ Escritas por el script: `snapshots`, `deals_snapshot`, `tickets_snapshot`, `etap
   «post-instalación», para que su histórico no aplaste la cadena.
 - La tabla «Qué cambió desde T0» muestra **sitios y kWp lado a lado** y no depende del
   botón Sitios/kWp; ese botón solo afecta las cifras del mes y la cadena.
-- **La cadena se deja en escala lineal a propósito.** 2.01 Análisis preliminar domina
-  porque el embudo es así de desigual, y cada tarjeta lleva su número. No cambiar a
-  escala raíz cuadrada ni similar: haría ver las etapas más parejas de lo que son.
+- **La cadena ya no lleva barras** (Paola, 18 nov 2026). No había meta contra qué
+  compararlas y cada fila tenía su propia escala, así que no se entendían. En su lugar
+  cada tarjeta muestra el cambio contra la foto T0 en sitios y kWp; si no cambió o solo
+  hay una foto, no se escribe nada. Sin color: que una etapa baje suele significar que
+  los sitios avanzaron, y el rojo se reserva para errores. **No volver a proponer barras
+  ni escalas** (ni lineal, ni raíz cuadrada) para esta vista.
 - `segmento` debe ser **idéntico a la etiqueta** del pipeline de deal en HubSpot:
   el script escribe en `deals_snapshot.segmento` el label del pipeline
   (`dealPipeLabel[...]`), no un nombre corto. Los tres que se sincronizan son
