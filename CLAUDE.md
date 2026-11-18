@@ -145,6 +145,23 @@ Aplican a toda vista nueva, no solo a las existentes.
 - `persona_equipos` ya existe en Supabase con su política RLS (18 nov 2026). El reparto de
   Juneth sigue pendiente de que Paola lo defina: mientras tanto cae en el caso automático.
 
+## Pronóstico y simulador
+
+- **El pronóstico modela la cadena como colas de capacidad**, no con tiempos por etapa.
+  Un sitio sale de una etapa cuando se cierra su ticket, así que la salida semanal es
+  lo que el equipo alcanza a cerrar (capacidad ÷ esfuerzo). Las etapas que no gobierna
+  un ticket (lotes de 2.01, espera de cuadrilla en 2.14) usan los días del Reverse Eng
+  Model, marcadas «según proceso». El mapeo vive en `config.js > ritmoEtapas`.
+- **Los tiempos por etapa de HubSpot NO se usan y no deben usarse.** Se mueven por lotes:
+  10 deals comparten exactamente 16.8 días en 2.01 y 6 de 25 pasaron 2.02 en segundos.
+  Miden cuándo se actualizó HubSpot, no cuánto tardó el trabajo.
+- **El esfuerzo calibrado manda sobre el del catálogo** donde existe
+  (`config.js > esfuerzoCalibrado`), y la vista dice cuál usó.
+- Si una cola no tiene esfuerzo en el catálogo, **no se inventa**: la etapa queda detenida
+  en el pronóstico y se avisa en rojo.
+- El pronóstico y los cuellos de botella salen de la **misma** función `pronostico()`.
+- El simulador cambia solo `ESTADO.sim`; nunca toca los datos.
+
 ## Reglas de trabajo
 
 - **No cambiar las fórmulas del dashboard** ni el **orden de las propiedades de kWp**

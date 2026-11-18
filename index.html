@@ -93,6 +93,8 @@ button.primario { background: var(--hs-ink); color: #fff; border-color: var(--hs
 .fuera-flujo .etapa { min-height: 0; }
 table.t0 th.par, table.t0 td.par { border-left: 1px solid var(--hs-border); }
 table.t0 th.sub { font-size: 11px; font-weight: 500; color: var(--hs-muted); }
+table.t0 .fut { border-top: 1px dashed var(--hs-border); border-bottom: 1px dashed var(--hs-border); color: var(--hs-muted); background: repeating-linear-gradient(45deg, transparent 0 6px, rgba(150,163,181,.06) 6px 12px); }
+table.t0 th.fut { font-style: italic; }
 
 /* ---- Secciones colapsables ---- */
 .sec { margin-top: 10px; }
@@ -123,6 +125,11 @@ th .info { margin-left: 2px; }
 .pd-mal { display: block; margin-top: 4px; color: var(--hs-red); font-weight: 600; }
 .pd-ord { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; cursor: pointer; color: inherit; }
 .panel-det tr.marca { background: var(--hs-yellow-tenue, #fbfde0); }
+details.cuello { border: 1px solid var(--hs-border); border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
+details.cuello > summary { cursor: pointer; }
+.sim { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; border: 1px dashed var(--hs-border); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+.sim label { font-size: 12px; }
+.sim.on { border-color: var(--hs-ink); background: var(--hs-yellow-tenue, #fbfde0); }
 .panel-det tr.marca td { font-weight: 600; }
 .panel-det td.asunto { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .panel-det table { table-layout: auto; width: 100%; }
@@ -505,7 +512,7 @@ function construirModelo(raw, opciones) {
   };
   return {
     tickets, abiertos, personas: Object.values(personas), equipos, sinPersona, ticketsInactivos, dias,
-    porEtapa, semanas, metricas, porTipo, lResumen,
+    porEtapa, semanas, metricas, porTipo, lResumen, catalogo: raw.catalogo,
     resumen: {
       abiertos: abiertos.length,
       vencidos: abiertos.filter(t => t.estadoSla === 'vencido').length,
@@ -657,8 +664,127 @@ function datosEjemplo() {
     snaps: semanas.map(f => ({ snapshot_date: f, creado: new Date(toDay(f) + 13 * 36e5).toISOString() })) };
 }
 
+// ====================== Pronóstico por colas de capacidad ======================
+// Un sitio sale de una etapa cuando se cierra su ticket. Por eso casi toda la cadena
+// se modela como colas: lo que sale cada semana es lo que el equipo alcanza a cerrar.
+// Las etapas que no gobierna un ticket (lotes de 2.01, espera de cuadrilla en 2.14)
+// usan los días del Reverse Eng Model, marcados «según proceso».
+// Los tiempos por etapa de HubSpot NO se usan: se mueven por lotes, no miden el proceso.
+function pronostico(M, sim) {
+  const S = sim || {};
+  const ritmos = CFG.ritmoEtapas || [];
+  const semanas = CFG.semanasPronostico || 10;
+  const porId = Object.fromEntries(ritmos.map(r => [r.id, r]));
+  const cal = CFG.esfuerzoCalibrado || {};
+
+  // Esfuerzo por tipo: calibrado si existe, si no el del catálogo, por el multiplicador.
+  const mult = S.multEsfuerzo || 1;
+  const esfuerzoDe = tipo => {
+    if (cal[tipo] != null) return { h: cal[tipo] * mult, fuente: 'calibrado' };
+    const c = (M.catalogo || []).find(x => x.tipo === tipo);
+    const h = c && c.esfuerzo_prod_h != null && c.esfuerzo_prod_h !== '' ? Number(c.esfuerzo_prod_h) : null;
+    return { h: h == null || isNaN(h) ? null : h * mult, fuente: h == null ? 'sin dato' : 'catálogo' };
+  };
+
+  // Horas por semana de cada equipo, con los ajustes del simulador.
+  const capSemana = {};
+  for (const e of M.equipos) {
+    const extra = (S.extraPersonas && S.extraPersonas[e.nombre]) || 0;
+    const factor = (S.focoFactor == null ? 1 : S.focoFactor);
+    // dispH es del horizonte actual; se normaliza a 5 días hábiles.
+    const porDia = M.dias.length ? e.dispH / M.dias.length : 0;
+    const jornadaExtra = extra * 8 * 0.8;  // una persona extra: jornada de 8 h al 80 % de foco
+    capSemana[e.nombre] = (porDia * factor + jornadaExtra) * 5;
+  }
+
+  // Estado inicial: los sitios de hoy por etapa.
+  const estado = {};
+  for (const e of M.porEtapa) estado[e.etapa_id] = { sitios: e.sitios, kwp: e.kwp, etiqueta: e.etiqueta };
+
+  const META = (CFG.etapasPostInstalacion || []);
+  const instalada = id => !porId[id] && !META.includes(id);
+  const salida = [];
+  const sinEsfuerzo = new Set();
+  const demandaEquipo = {};   // equipo -> [horas por semana]
+
+  for (let w = 1; w <= semanas; w++) {
+    // 1. Cuánto puede cerrar cada equipo esta semana, repartido entre las colas que compiten.
+    const colasPorEquipo = {};
+    for (const r of ritmos) {
+      if (r.modo !== 'cola') continue;
+      const n = (estado[r.id] || {}).sitios || 0;
+      if (n <= 0) continue;
+      (colasPorEquipo[r.equipo] ||= []).push(r);
+    }
+    const mueve = {};
+    for (const r of ritmos) {
+      const st = estado[r.id];
+      if (!st || st.sitios <= 0) { mueve[r.id] = 0; continue; }
+      if (r.modo === 'proceso') {
+        const dias = (S.diasEtapa && S.diasEtapa[r.cod]) || r.dias || 1;
+        mueve[r.id] = st.sitios * Math.min(1, 5 / dias);   // fracción que alcanza a salir
+      } else {
+        const esf = esfuerzoDe(r.ticket);
+        const compiten = colasPorEquipo[r.equipo] || [r];
+        const horas = (capSemana[r.equipo] || 0) / compiten.length;
+        // Sin esfuerzo en el catálogo la cola no se puede modelar: se marca, no se inventa.
+        if (esf.h == null) { sinEsfuerzo.add(`${r.cod} · ${r.ticket}`); mueve[r.id] = 0; continue; }
+        const cabenTickets = horas / esf.h;
+        mueve[r.id] = Math.min(st.sitios, cabenTickets);
+        (demandaEquipo[r.equipo] ||= []);
+        demandaEquipo[r.equipo][w - 1] = (demandaEquipo[r.equipo][w - 1] || 0) + (esf.h ? st.sitios * esf.h : 0);
+      }
+    }
+    // 2. Mover: lo que sale de una etapa entra a la siguiente, menos la conversión.
+    const siguiente = {};
+    ritmos.forEach((r, i) => {
+      const st = estado[r.id]; if (!st) return;
+      const n = Math.min(st.sitios, mueve[r.id] || 0);
+      if (n <= 0) return;
+      const kwpPorSitio = st.sitios ? st.kwp / st.sitios : 0;
+      const pasan = n * (r.conversion == null ? 1 : r.conversion);
+      st.sitios -= n; st.kwp -= n * kwpPorSitio;
+      const destino = ritmos[i + 1] ? ritmos[i + 1].id : 'INSTALADO';
+      siguiente[destino] = siguiente[destino] || { sitios: 0, kwp: 0 };
+      siguiente[destino].sitios += pasan;
+      siguiente[destino].kwp += pasan * kwpPorSitio;
+    });
+    let instalados = { sitios: 0, kwp: 0 };
+    for (const [id, v] of Object.entries(siguiente)) {
+      if (id === 'INSTALADO') { instalados = v; continue; }
+      estado[id] = estado[id] || { sitios: 0, kwp: 0, etiqueta: (porId[id] || {}).cod || id };
+      estado[id].sitios += v.sitios; estado[id].kwp += v.kwp;
+    }
+    salida.push({
+      etiqueta: `${w}S`, pronostico: true,
+      porEtapa: Object.fromEntries(Object.entries(estado).map(([k, v]) => [k, { sitios: Math.round(v.sitios), kwp: Math.round(v.kwp) }])),
+      instalados: { sitios: Math.round(instalados.sitios * 10) / 10, kwp: Math.round(instalados.kwp) },
+      sitios: Math.round(Object.values(estado).reduce((a, v) => a + v.sitios, 0)),
+      kwp: Math.round(Object.values(estado).reduce((a, v) => a + v.kwp, 0)),
+    });
+  }
+
+  // 3. Cuellos de botella: demanda contra capacidad, semana a semana.
+  const equipos = [...new Set(ritmos.filter(r => r.modo === 'cola').map(r => r.equipo))];
+  const cuellos = equipos.map(nombre => {
+    const cap = capSemana[nombre] || 0;
+    const dem = [];
+    for (let w = 0; w < semanas; w++) dem.push((demandaEquipo[nombre] || [])[w] || 0);
+    const util = dem.map(d => cap > 0 ? d / cap : null);
+    const primera = util.findIndex(u => u != null && u > 1);
+    const colas = ritmos.filter(r => r.equipo === nombre).map(r => r.cod);
+    return { nombre, cap, dem, util, primeraSemana: primera < 0 ? null : primera + 1, colas,
+             esfuerzo: ritmos.filter(r => r.equipo === nombre).map(r => ({ ticket: r.ticket, ...esfuerzoDe(r.ticket) })) };
+  }).sort((a, b) => (a.primeraSemana ?? 99) - (b.primeraSemana ?? 99));
+
+  return { semanas: salida, cuellos, capSemana, sinEsfuerzo: [...sinEsfuerzo] };
+}
+
 // ====================== Vista ======================
-const ESTADO = { raw: null, modelo: null, tab: 'flujo', unidad: 'sitios', horizonte: CFG.horizonteDias || 10, mes: isoDay(HOY).slice(0, 7), segmento: null, t0: null };
+const SIM0 = { meta: null, focoFactor: 1, multEsfuerzo: 1, extraPersonas: {}, diasEtapa: {} };
+const ESTADO = { raw: null, modelo: null, tab: 'flujo', unidad: 'sitios', horizonte: CFG.horizonteDias || 10, mes: isoDay(HOY).slice(0, 7), segmento: null, t0: null,
+  sim: { ...SIM0, extraPersonas: {}, diasEtapa: {} }, simOn: false };
+const simActivo = () => ESTADO.simOn;
 
 // ====================== Definiciones de cada métrica ======================
 // Lenguaje simple: qué es, cómo se calcula y qué incluye. Se muestran en el ⓘ.
@@ -695,6 +821,7 @@ const DEF = {
   diasRestantes: 'Días hábiles entre hoy y la fecha de instalación del sitio.',
   porQue: 'El ticket que marca el cuello de botella y cuánto tiempo pide entre fila y SLA.',
   ticketsInactivos: 'Tickets abiertos cuyos deals están todos en una etapa inactiva (Inviable, Dormant, Churned). No consumen capacidad: conviene cerrarlos.',
+  cuellos: 'Semana a semana, las horas que pide la fila de cada equipo contra las horas que tiene. Un sitio sale de una etapa cuando se cierra su ticket, así que la velocidad de la cadena es la capacidad de quien cierra. Es un pronóstico preliminar.',
   sinOwner: 'Tickets abiertos cuyo owner de HubSpot no está en la tabla personas, así que su trabajo no se le suma a nadie.',
 };
 function info(id) {
@@ -981,9 +1108,21 @@ function pillSla(t) {
 const slaTxt = d => d == null ? '—' : d < 1 ? `${fmt1.format(d * 8)} h` : `${fmt1.format(d)} d`;
 const marcaSupuesto = (txt, firme) => firme ? txt : `<span class="supuesto" title="Valor del catálogo aún no firmado">${txt}</span>`;
 
+// Cada etapa dice de dónde sale su ritmo en el pronóstico.
+function ritmoInfo(etapaId) {
+  const r = (CFG.ritmoEtapas || []).find(x => x.id === etapaId);
+  if (!r) return '';
+  const t = r.modo === 'cola'
+    ? `Ritmo: capacidad de ${r.equipo}. Sale cuando se cierra su ticket de «${r.ticket}», así que depende de cuántos alcance a cerrar el equipo esa semana.`
+    : `Ritmo: según proceso, ${r.dias} días hábiles del Reverse Eng Model${r.nota ? ` (${r.nota})` : ''}. No lo gobierna ningún ticket.`;
+  const conv = r.conversion != null && r.conversion < 1 ? ` Solo el ${Math.round(r.conversion * 100)} % sigue adelante.` : '';
+  return ` <button class="info" type="button" aria-label="De dónde sale su ritmo" data-def="${esc(t + conv)}">i</button>`;
+}
+
 function vistaFlujo(M, raw) {
   const R = M.resumen, L = M.lResumen;
   const sem = M.semanas;
+  const P = pronostico(M, ESTADO.sim);
   const etapas = M.porEtapa;
   const delta = (a, b) => { const d = a - b; return d === 0 ? '' : `<span class="dif">${d > 0 ? '+' : '−'}${fmt.format(Math.abs(d))}</span>`; };
   // La serie histórica solo guarda ids: el nombre se toma de la foto más reciente.
@@ -1019,17 +1158,19 @@ function vistaFlujo(M, raw) {
       `${sem.length} fotos · total ${fmt.format(sem[sem.length - 1]?.sitios || 0)} sitios${sem.length > 1 ? ` (${(sem[sem.length - 1].sitios - sem[0].sitios) >= 0 ? '+' : '−'}${fmt.format(Math.abs(sem[sem.length - 1].sitios - sem[0].sitios))} desde T0)` : ''}`,
       fH, `<div class="tabla"><table class="t0">
       <thead>
-        <tr><th rowspan="2">Etapa</th>${sem.map(s => `<th colspan="2" class="par" title="${s.fecha}">${s.etiqueta} <small>${s.fecha.slice(5)}</small></th>`).join('')}</tr>
-        <tr>${sem.map(() => '<th class="sub par">Sitios</th><th class="sub">kWp</th>').join('')}</tr>
+        <tr><th rowspan="2">Etapa</th>${sem.map(s => `<th colspan="2" class="par" title="${s.fecha}">${s.etiqueta} <small>${s.fecha.slice(5)}</small></th>`).join('')}${P.semanas.map(f => `<th colspan="2" class="par fut">${f.etiqueta} <small>pronóstico</small></th>`).join('')}</tr>
+        <tr>${sem.map(() => '<th class="sub par">Sitios</th><th class="sub">kWp</th>').join('')}${P.semanas.map(() => '<th class="sub par fut">Sitios</th><th class="sub fut">kWp</th>').join('')}</tr>
       </thead>
-      <tbody>${etapas.map(e => `<tr><td>${esc(e.etiqueta)}</td>${sem.map((s, i) => {
+      <tbody>${etapas.map(e => `<tr><td>${esc(e.etiqueta)}${ritmoInfo(e.etapa_id)}</td>${sem.map((s, i) => {
         const x = s.porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 }, x0 = sem[0].porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 };
         const ds = sitiosDe(s, e);
         return `<td class="par">${num(fmt.format(x.sitios), `${e.etiqueta} · ${s.etiqueta} ${s.fecha}`, ds, 'sitios')}${i ? delta(x.sitios, x0.sitios) : ''}</td><td>${num(fmt.format(x.kwp), `${e.etiqueta} · ${s.etiqueta} ${s.fecha} · kWp`, ds, 'sitios', { explica: `Suma de kWp de ${fmt.format(ds.length)} sitios en ${e.etiqueta} el ${s.fecha}: ${fmt1.format(x.kwp)} kWp`, ordenar: 'kwp' })}${i ? delta(x.kwp, x0.kwp) : ''}</td>`;
-      }).join('')}</tr>`).join('')}</tbody>
-      <tfoot><tr><td>Total</td>${sem.map((s, i) => `
+      }).join('')}${P.semanas.map(f => { const x = f.porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 };
+        return `<td class="par fut">${fmt.format(x.sitios)}</td><td class="fut">${fmt.format(x.kwp)}</td>`; }).join('')}</tr>`).join('')}</tbody>
+      <tfoot><tr><td>Llegan a instalación</td>${sem.map(() => '<td class="par"></td><td></td>').join('')}${P.semanas.map(f => `<td class="par fut">${fmt1.format(f.instalados.sitios)}</td><td class="fut">${fmt.format(f.instalados.kwp)}</td>`).join('')}</tr>
+      <tr><td>Total</td>${sem.map((s, i) => `
         <td class="par">${fmt.format(s.sitios)}${i ? delta(s.sitios, sem[0].sitios) : ''}</td>
-        <td>${fmt.format(s.kwp)}${i ? delta(s.kwp, sem[0].kwp) : ''}</td>`).join('')}</tr></tfoot>
+        <td>${fmt.format(s.kwp)}${i ? delta(s.kwp, sem[0].kwp) : ''}</td>`).join('')}${P.semanas.map(f => `<td class="par fut">${fmt.format(f.sitios)}</td><td class="fut">${fmt.format(f.kwp)}</td>`).join('')}</tr></tfoot>
     </table></div>`)}
 
     ${seccion('tipos', 'Volumen y SLA por tipo de ticket', null,
@@ -1110,6 +1251,30 @@ function vistaCapacidad(M, raw) {
           <td class="izq">${esc(t.etapaDeal || '—')}</td></tr>`).join('')}</tbody>
       </table></div>`) : ''}
 
+    ${(() => { const P = pronostico(M, ESTADO.sim);
+      const frase = c => c.primeraSemana == null
+        ? (c.util[0] != null && c.util[0] > 0.85 ? 'al límite, no se satura en el horizonte' : `con espacio las ${P.semanas.length} semanas`)
+        : c.primeraSemana === 1 ? 'saturado desde ya' : `se satura en ${c.primeraSemana}S`;
+      const resumen = P.cuellos.filter(c => c.primeraSemana != null).length;
+      return seccion('cuellos', 'Próximos cuellos de botella', 'cuellos',
+        resumen ? `${resumen} de ${P.cuellos.length} equipos se saturan` : 'ningún equipo se satura',
+        `Pronóstico preliminar · demanda de las colas contra la capacidad del equipo, ${P.semanas.length} semanas`,
+        `${P.sinEsfuerzo.length ? `<p class="aviso error">${P.sinEsfuerzo.length} colas no se pueden proyectar porque su ticket no tiene esfuerzo en el catálogo: ${P.sinEsfuerzo.map(esc).join(', ')}. Esas etapas quedan detenidas en el pronóstico.</p>` : ''}
+        <p class="aviso">Pronóstico preliminar. El ritmo de cada etapa sale de la capacidad del equipo que cierra su ticket, o de los días del Reverse Eng Model. <b>No usa los tiempos por etapa de HubSpot</b>, que se mueven por lotes.</p>
+        ${P.cuellos.map(c => `<details class="cuello">
+          <summary><b>${esc(c.nombre)}</b>: ${frase(c)}</summary>
+          <p class="nota">Capacidad ${fmt.format(c.cap)} h por semana. Colas que compiten: ${c.colas.join(', ')}.</p>
+          <div class="tabla"><table>
+            <thead><tr><th class="izq">Semana</th>${c.dem.map((_, i) => `<th>${i + 1}S</th>`).join('')}</tr></thead>
+            <tbody>
+              <tr><td class="izq">Demanda (h)</td>${c.dem.map(d => `<td>${fmt.format(d)}</td>`).join('')}</tr>
+              <tr><td class="izq">Capacidad (h)</td>${c.dem.map(() => `<td>${fmt.format(c.cap)}</td>`).join('')}</tr>
+              <tr><td class="izq">Utilización</td>${c.util.map(u => `<td>${u == null ? '—' : `<span class="pill ${u > 1 ? 'bad' : u > 0.85 ? 'warn' : 'ok'}">${pct(u)}</span>`}</td>`).join('')}</tr>
+            </tbody></table></div>
+          <p class="nota">Esfuerzo usado: ${c.esfuerzo.map(e => `${esc(e.ticket)} ${e.h == null ? '— sin dato' : fmt1.format(e.h) + ' h'} <span class="supuesto">(${e.fuente})</span>`).join(' · ')}</p>
+        </details>`).join('')}`);
+    })()}
+
     ${seccion('personas', 'Por persona', null,
       `${M.personas.length} personas · ${M.personas.filter(p => p.util != null && p.util > 1).length} arriba del 100 %`,
       `${fH} · ${fPer} · ${fCat}`,
@@ -1159,6 +1324,16 @@ function render() {
       <button role="tab" id="t-flujo" aria-controls="p-flujo" aria-selected="${ESTADO.tab === 'flujo'}">Flujo y SLA</button>
       <button role="tab" id="t-cap" aria-controls="p-cap" aria-selected="${ESTADO.tab === 'cap'}">Capacidad y saturación</button>
     </div>
+    <div class="sim ${ESTADO.simOn ? 'on' : ''}" id="sim">
+      <strong style="font-size:13px">Simulador</strong>
+      <label>Meta del mes <input type="number" id="s-meta" min="0" step="5" style="width:70px" value="${ESTADO.sim.meta ?? M.metricas.goal[ESTADO.unidad]}"></label>
+      <label>Foco de todos <select id="s-foco">${[0.5,0.75,1,1.25,1.5].map(f => `<option value="${f}" ${ESTADO.sim.focoFactor === f ? 'selected' : ''}>${Math.round(f*100)} %</option>`).join('')}</select></label>
+      <label>Esfuerzo <select id="s-esf">${[0.5,0.75,1,1.5,2].map(f => `<option value="${f}" ${ESTADO.sim.multEsfuerzo === f ? 'selected' : ''}>×${f}</option>`).join('')}</select></label>
+      <label>+1 persona en <select id="s-extra"><option value="">—</option>${[...new Set((CFG.ritmoEtapas||[]).filter(r=>r.equipo).map(r=>r.equipo))].map(e => `<option value="${esc(e)}" ${ESTADO.sim.extraPersonas[e] ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></label>
+      <label>Días de 2.01 <input type="number" id="s-d201" min="1" step="1" style="width:56px" value="${ESTADO.sim.diasEtapa['2.01'] ?? 9}"></label>
+      <button type="button" id="s-reset">Volver a lo real</button>
+      ${ESTADO.simOn ? '<span class="pill warn">Simulando: los datos reales no cambian</span>' : ''}
+    </div>
     <section class="panel" id="p-flujo" role="tabpanel" aria-labelledby="t-flujo" ${ESTADO.tab === 'flujo' ? '' : 'hidden'}>${vistaFlujo(M, raw)}</section>
     <section class="panel" id="p-cap" role="tabpanel" aria-labelledby="t-cap" ${ESTADO.tab === 'cap' ? '' : 'hidden'}>${vistaCapacidad(M, raw)}</section>
     <aside class="panel-det" id="panel-det" role="dialog" aria-modal="true" aria-labelledby="pd-t" hidden>
@@ -1176,6 +1351,15 @@ function render() {
   on('t-flujo', 'click', () => { ESTADO.tab = 'flujo'; render(); });
   on('t-cap', 'click', () => { ESTADO.tab = 'cap'; render(); });
   on('c-salir', 'click', async () => { await sb.auth.signOut(); location.reload(); });
+
+  // Simulador: cambia solo ESTADO.sim, nunca los datos.
+  const simCambio = () => { ESTADO.simOn = true; render(); };
+  on('s-foco', 'change', e => { ESTADO.sim.focoFactor = Number(e.target.value); simCambio(); });
+  on('s-esf', 'change', e => { ESTADO.sim.multEsfuerzo = Number(e.target.value); simCambio(); });
+  on('s-meta', 'change', e => { ESTADO.sim.meta = Number(e.target.value) || null; simCambio(); });
+  on('s-d201', 'change', e => { ESTADO.sim.diasEtapa['2.01'] = Number(e.target.value) || 9; simCambio(); });
+  on('s-extra', 'change', e => { ESTADO.sim.extraPersonas = e.target.value ? { [e.target.value]: 1 } : {}; simCambio(); });
+  on('s-reset', 'click', () => { ESTADO.sim = { ...SIM0, extraPersonas: {}, diasEtapa: {} }; ESTADO.simOn = false; render(); });
 
   // Panel de detalle: abrir, cerrar con Esc o con el botón.
   app.querySelectorAll('.num').forEach(b => b.addEventListener('click', e => {
