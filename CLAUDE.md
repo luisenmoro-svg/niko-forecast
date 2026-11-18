@@ -172,9 +172,15 @@ Aplican a toda vista nueva, no solo a las existentes.
   entornos devuelven exactamente lo mismo.
 - **Sin dos fotos separadas por 5 días no se puede medir el ritmo de entrada.** En ese
   caso el pronóstico lo dice en rojo y usa el ritmo de la meta; **nunca cero en silencio**.
-- `pronosticos` y `demanda_historica` ya existen en Supabase (18 nov 2026). Las fotos de
-  Devin se importan con `scripts/importar-devin.mjs`: **no traen deals**, solo `tipos_30d`,
-  un agregado de 30 días por tipo de ticket.
+- **Para calibrar esfuerzo y ritmo de entrada se usa `tickets_snapshot`**, no las fotos
+  de Devin. El sync guarda los tickets abiertos más los cerrados en los últimos
+  **120 días** (`CLOSED_LOOKBACK_DAYS`), ticket por ticket y con owner, tipo y fechas.
+- **Las fotos de Devin no se importaron** (decisión de Luisen, 18 nov 2026): las cuatro que
+  existen son del 13 al 18 de noviembre y su `tipos_30d` cubre casi la misma ventana de
+  30 días, así que aportan menos que `tickets_snapshot`. Se dejan listos por si aparecen
+  fotos de meses anteriores: la tabla `demanda_historica` en Supabase,
+  `scripts/importar-devin.mjs` y `datos/demanda_historica.csv` (914 filas ya convertidas).
+  Las fotos **no traen deals**, solo agregados por tipo de ticket.
 - En `demanda_historica`, `pipeline` y `resolucion` son parte de la llave primaria y van
   con `''`, **nunca con `null`**: Postgres no acepta `coalesce` en una primary key y una
   columna nula no sirve como parte de la llave.
