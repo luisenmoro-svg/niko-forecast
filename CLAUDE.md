@@ -38,9 +38,10 @@ Escritas por el script: `snapshots`, `deals_snapshot`, `tickets_snapshot`, `etap
 - `personas`: la llave primaria `owner_id` es el **`hubspot_owner_id`**.
 - `etapas_deal` tiene dos banderas manuales que el sync **no pisa** (su upsert solo manda
   `etapa_id`, `etiqueta`, `pipeline`, `orden`):
-  - **`es_instalado`**: cuenta en Real. Las 7 de Enterprise desde 2.15 en adelante
-    (`1020225614`, `267654746`, `1187009283`, `1020326034`, `1020326036`,
-    `1109385340`, `1109385341`). SQL entregado; **sin confirmación de que se corrió**.
+  - **`es_instalado`**: cuenta en Real. **Marcadas las 7** de Enterprise desde 2.15 en
+    adelante (18 nov 2026): `1020225614` 2.15, `267654746` 2.17, `1187009283` 2.18,
+    `1020326034` 2.19, `1020326036` 2.20, `1109385340` 2.21, `1109385341` 2.23.
+    No existen 2.16 ni 2.22.
   - **`es_inactivo`**: no cuentan en la cadena, el T0, goal/forecast/real ni en
     capacidad; sus tickets abiertos salen listados en la pestaña de capacidad para
     cerrarlos. **Marcadas las 6** (verificado en Supabase, 18 nov 2026):
