@@ -113,6 +113,15 @@ table.t0 th.sub { font-size: 11px; font-weight: 500; color: var(--hs-muted); }
 .info::after { content: attr(data-def); position: absolute; z-index: 30; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); width: max-content; max-width: 260px; padding: 8px 10px; background: var(--hs-ink); color: #fff; font: 400 12px/1.4 Lexend, system-ui, sans-serif; text-align: left; white-space: normal; border-radius: 6px; box-shadow: var(--hs-shadow); opacity: 0; visibility: hidden; transition: opacity .12s; pointer-events: none; }
 .info:hover::after, .info:focus-visible::after, .info.abierto::after { opacity: 1; visibility: visible; }
 th .info { margin-left: 2px; }
+.num { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; border-bottom: 1px dotted var(--hs-gull); }
+.num:hover, .num:focus-visible { border-bottom-color: var(--hs-ink); border-bottom-style: solid; }
+.panel-det { position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 94vw); z-index: 40; background: var(--hs-card); border-left: 1px solid var(--hs-border); box-shadow: var(--hs-shadow); display: flex; flex-direction: column; padding: 14px 16px; overflow: auto; }
+.panel-det[hidden] { display: none; }
+.panel-det header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.panel-det h2 { font-size: 15px; margin: 0; }
+.pd-n { margin: 4px 0 10px; font-size: 12px; color: var(--hs-muted); }
+.pd-mal { display: block; margin-top: 4px; color: var(--hs-red); font-weight: 600; }
+.pd-ord { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; cursor: pointer; color: inherit; }
 .info.anc-izq::after { left: 0; transform: none; }
 .info.anc-der::after { left: auto; right: 0; transform: none; }
 
@@ -298,6 +307,7 @@ function construirModelo(raw, opciones) {
   for (const p of Object.values(personas)) {
     const mios = tickets.filter(t => t.owner_id === p.owner_id);
     const misAbiertos = mios.filter(t => t.abierto);
+    p.lAbiertos = misAbiertos;
     p.backlogN = misAbiertos.length;
     p.backlogH = sum(misAbiertos, t => t.horas);
     p.sinEsfuerzo = misAbiertos.filter(t => t.horas == null).length;
@@ -320,29 +330,74 @@ function construirModelo(raw, opciones) {
     for (const c of p.capPorDia) { b = Math.max(0, b + p.entradaDiaH - c); p.proyeccion.push(b); }
   }
 
-  // --- Equipos (saturación)
-  const porEquipo = groupBy(Object.values(personas), p => p.equipo);
-  const equipos = Object.entries(porEquipo).map(([nombre, ps]) => {
+  // --- Reparto de la capacidad de cada persona entre equipos
+  // 1) persona_equipos manda. 2) un equipo con «/» y sin porcentajes se reparte según
+  // la mezcla de pipelines de sus tickets de los últimos 28 días (queda como supuesto).
+  // 3) en cualquier otro caso, toda su capacidad va a personas.equipo.
+  const pePorOwner = groupBy(raw.personaEquipos || [], r => r.owner_id);
+  for (const p of Object.values(personas)) {
+    const filas = (pePorOwner[p.owner_id] || []).filter(r => Number(r.porcentaje) > 0);
+    const total = sum(filas, r => Number(r.porcentaje));
+    if (filas.length && total > 0) {
+      p.pesos = {}; for (const r of filas) p.pesos[r.equipo] = (p.pesos[r.equipo] || 0) + Number(r.porcentaje) / total;
+      p.pesosSupuestos = false;
+    } else if ((p.equipo || '').includes('/')) {
+      const partes = p.equipo.split('/').map(x => x.trim()).filter(Boolean);
+      const recientes = tickets.filter(t => t.owner_id === p.owner_id && t.creado28 && t.equipo);
+      const porPipe = groupBy(recientes, t => t.equipo);
+      const n = recientes.length;
+      p.pesos = n
+        ? Object.fromEntries(Object.entries(porPipe).map(([eq, ts]) => [eq, ts.length / n]))
+        : Object.fromEntries(partes.map(x => [x, 1 / partes.length]));
+      p.pesosSupuestos = true;
+    } else {
+      p.pesos = { [p.equipo]: 1 };
+      p.pesosSupuestos = false;
+    }
+  }
+
+  // --- Equipos: la demanda es del pipeline del ticket, la oferta son los pesos
+  const demandaPorEquipo = groupBy(abiertos.filter(t => t.equipo), t => t.equipo);
+  const entradaPorEquipo = groupBy(tickets.filter(t => t.creado28 && t.equipo), t => t.equipo);
+  const salidaPorEquipo = groupBy(tickets.filter(t => t.cerrado28 && t.equipo), t => t.equipo);
+  const nombresEquipo = [...new Set([
+    ...Object.keys(demandaPorEquipo), ...Object.keys(entradaPorEquipo), ...Object.keys(salidaPorEquipo),
+    ...Object.values(personas).flatMap(p => Object.keys(p.pesos)),
+  ])].filter(Boolean).sort();
+
+  const equipos = nombresEquipo.map(nombre => {
+    // Personas que aportan capacidad a este equipo, con su fracción.
+    const ps = Object.values(personas).filter(p => (p.pesos[nombre] || 0) > 0);
+    const w = p => p.pesos[nombre] || 0;
+    const abiertosEq = demandaPorEquipo[nombre] || [];
     const e = { nombre, personas: ps };
-    e.dispH = sum(ps, p => p.dispH);
-    e.reqH = sum(ps, p => p.reqH);
-    e.backlogH = sum(ps, p => p.backlogH);
-    e.backlogN = sum(ps, p => p.backlogN);
-    e.sinEsfuerzo = sum(ps, p => p.sinEsfuerzo);
+    e.supuesto = ps.some(p => p.pesosSupuestos);
+    e.dispH = sum(ps, p => p.dispH * w(p));
+    e.backlogH = sum(abiertosEq, t => t.horas);
+    e.backlogN = abiertosEq.length;
+    e.abiertos = abiertosEq;
+    e.sinEsfuerzo = abiertosEq.filter(t => t.horas == null).length;
+    e.entradaDiaH = sum(entradaPorEquipo[nombre] || [], t => t.horas) / habiles28;
+    e.reqH = e.backlogH + e.entradaDiaH * dias.length;
     e.util = e.dispH > 0 ? e.reqH / e.dispH : null;
-    e.entradaSem = sum(ps, p => p.entradaDiaN) * 5;
-    e.salidaSem = sum(ps, p => p.salidaDiaN) * 5;
-    e.proyeccion = dias.map((_, i) => sum(ps, p => p.proyeccion[i + 1])); e.proyeccion.unshift(e.backlogH);
-    const top = [...ps].sort((a, b) => b.backlogN - a.backlogN)[0];
-    e.concentracion = e.backlogN ? top.backlogN / e.backlogN : 0;
-    e.top = top;
+    e.entradaSem = (entradaPorEquipo[nombre] || []).length / habiles28 * 5;
+    e.salidaSem = (salidaPorEquipo[nombre] || []).length / habiles28 * 5;
+    const capDiaEq = dias.map((_, i) => sum(ps, p => p.capPorDia[i] * w(p)));
+    let b = e.backlogH; e.proyeccion = [b];
+    for (const c of capDiaEq) { b = Math.max(0, b + e.entradaDiaH - c); e.proyeccion.push(b); }
+    const porOwner = groupBy(abiertosEq, t => t.owner_id);
+    const topOwner = Object.entries(porOwner).sort((a, b) => b[1].length - a[1].length)[0];
+    e.concentracion = e.backlogN && topOwner ? topOwner[1].length / e.backlogN : 0;
+    e.top = topOwner ? (personas[topOwner[0]] || { nombre: topOwner[0] }) : { nombre: '—' };
     e.diaVacio = e.proyeccion.findIndex((v, i) => i > 0 && v === 0);
     e.alertas = [];
     if (e.util == null) e.alertas.push('Sin horas disponibles en el horizonte');
     else if (e.util > 1) e.alertas.push(`Faltan ${fmt.format(e.reqH - e.dispH)} h en ${dias.length} días hábiles`);
     if (e.entradaSem > e.salidaSem * 1.1 && e.entradaSem >= 1) e.alertas.push(`La fila crece: entran ${fmt1.format(e.entradaSem)} y salen ${fmt1.format(e.salidaSem)} por semana`);
-    if (e.concentracion >= 0.7 && e.backlogN >= 5 && ps.length > 1) e.alertas.push(`${top.nombre} tiene ${pct(e.concentracion)} de los abiertos`);
-    if (ps.length === 1 && e.backlogN >= 5) e.alertas.push(`Depende de una sola persona (${top.nombre})`);
+    if (e.concentracion >= 0.7 && e.backlogN >= 5 && ps.length > 1) e.alertas.push(`${e.top.nombre} tiene ${pct(e.concentracion)} de los abiertos`);
+    if (ps.length === 1 && e.backlogN >= 5) e.alertas.push(`Depende de una sola persona (${e.top.nombre})`);
+    if (!ps.length && e.backlogN) e.alertas.push('Nadie tiene capacidad asignada a este pipeline');
+    if (e.supuesto) e.alertas.push('Parte de la capacidad se repartió por la mezcla de tickets de 28 días, no por porcentajes cargados');
     if (e.sinEsfuerzo) e.alertas.push(`${e.sinEsfuerzo} abiertos sin esfuerzo en el catálogo: la carga real es mayor`);
     e.sinDatos = e.backlogN > 0 && e.sinEsfuerzo === e.backlogN;
     e.nivel = e.sinDatos ? 'mute' : e.util == null || e.util > 1 ? 'bad' : e.util > 0.85 || e.alertas.length > 1 ? 'warn' : 'ok';
@@ -356,8 +411,8 @@ function construirModelo(raw, opciones) {
   const esInstalado = d => !!(etapaPorId[d.etapa_id] && etapaPorId[d.etapa_id].es_instalado);
 
   const porEtapa = etapas.map(e => {
-    const ds = deals.filter(d => d.etapa_id === e.etapa_id);
-    return { ...e, sitios: ds.length, kwp: sum(ds, d => d.kwp) };
+    const ds = deals.filter(d => d.etapa_id === e.etapa_id).map(d => ({ ...d, etapaEtiqueta: e.etiqueta }));
+    return { ...e, sitios: ds.length, kwp: sum(ds, d => d.kwp), ds };
   });
 
   // Evolución semanal: T0, 1S, 2S…
@@ -366,7 +421,7 @@ function construirModelo(raw, opciones) {
     const filas = series.filter(r => r.snapshot_date === fecha);
     const pe = {};
     for (const e of etapas) { const ds = filas.filter(r => r.etapa_id === e.etapa_id); pe[e.etapa_id] = { sitios: ds.length, kwp: sum(ds, d => d.kwp) }; }
-    return { fecha, etiqueta: i === 0 ? 'T0' : `${i}S`, porEtapa: pe, sitios: sum(Object.values(pe), x => x.sitios), kwp: sum(Object.values(pe), x => x.kwp) };
+    return { fecha, etiqueta: i === 0 ? 'T0' : `${i}S`, porEtapa: pe, filas, sitios: sum(Object.values(pe), x => x.sitios), kwp: sum(Object.values(pe), x => x.kwp) };
   });
 
   // --- Goal, forecast y real del mes
@@ -400,12 +455,19 @@ function construirModelo(raw, opciones) {
     return r;
   });
   const enF = evaluados.filter(r => r.enForecast), reales = evaluados.filter(r => r.instalado);
+  const conEtapa = d => ({ ...d, etapaEtiqueta: (etapaPorId[d.etapa_id] || {}).etiqueta });
   const metricas = {
     goal,
     plan: { sitios: comprometidos.length, kwp: sum(comprometidos, d => d.kwp) },
     forecast: { sitios: enF.length, kwp: sum(enF, r => r.deal.kwp) },
     real: { sitios: reales.length, kwp: sum(reales, r => r.deal.kwp) },
     fuera: evaluados.filter(r => !r.enForecast).sort((a, b) => (b.demora ?? 0) - (a.demora ?? 0)),
+    // Listas exactas detrás de cada cifra, para el panel de detalle.
+    listas: {
+      plan: comprometidos.map(conEtapa),
+      forecast: enF.map(r => conEtapa(r.deal)),
+      real: reales.map(r => conEtapa(r.deal)),
+    },
   };
 
   // --- Resumen de tickets por tipo
@@ -421,13 +483,22 @@ function construirModelo(raw, opciones) {
       creados28: ts.filter(t => t.creado28).length, cerrados28: cer.length,
       cumplimiento: conSla.length ? conSla.filter(t => t.edad <= t.sla).length / conSla.length : null,
       horasBacklog: sum(ab, t => t.horas),
+      // Listas exactas detrás de cada celda.
+      lAbiertos: ab,
+      lVencidos: ab.filter(t => t.estadoSla === 'vencido'),
+      lRiesgo: ab.filter(t => t.estadoSla === 'riesgo'),
+      lCreados28: ts.filter(t => t.creado28), lCerrados28: cer, lConSla: conSla,
     };
   }).sort((a, b) => b.abiertos - a.abiertos);
 
   const cerrados28 = tickets.filter(t => t.cerrado28 && t.sla != null);
+  const lResumen = {
+    abiertos, vencidos: abiertos.filter(t => t.estadoSla === 'vencido'),
+    riesgo: abiertos.filter(t => t.estadoSla === 'riesgo'), cerrados28,
+  };
   return {
     tickets, abiertos, personas: Object.values(personas), equipos, sinPersona, ticketsInactivos, dias,
-    porEtapa, semanas, metricas, porTipo,
+    porEtapa, semanas, metricas, porTipo, lResumen,
     resumen: {
       abiertos: abiertos.length,
       vencidos: abiertos.filter(t => t.estadoSla === 'vencido').length,
@@ -452,6 +523,10 @@ async function traerTodo(tabla, columnas, filtro) {
     if (data.length < 1000) break;
   }
   return out;
+}
+// La tabla puede no existir todavía: sin ella, cada persona va completa a su equipo.
+async function traerOpcional(tabla, columnas) {
+  try { return await traerTodo(tabla, columnas); } catch (e) { return []; }
 }
 function elegirSemanas(fechas, t0) {
   const ordenadas = [...fechas].sort();
@@ -479,6 +554,7 @@ async function cargarSupabase(t0) {
     traerTodo('feriados', '*'), traerTodo('metas', '*'), traerTodo('etapas_deal', '*'),
     traerTodo('snapshots', 'snapshot_date,creado', q => q.order('snapshot_date')),
   ]);
+  const personaEquipos = await traerOpcional('persona_equipos', '*');
   if (!snaps.length) throw new Error('Todavía no hay fotos de HubSpot. Corre el workflow «Foto de HubSpot» en GitHub Actions.');
   FERIADOS = new Set(feriados.map(f => toDay(f.fecha)));
   const fechas = snaps.map(s => s.snapshot_date);
@@ -489,7 +565,7 @@ async function cargarSupabase(t0) {
     traerTodo('tickets_snapshot', '*', q => q.eq('snapshot_date', ultima)),
     traerTodo('deals_snapshot', 'snapshot_date,deal_id,etapa_id,kwp,segmento', q => q.in('snapshot_date', semanas)),
   ]);
-  return { catalogo, personas, ausencias, feriados, metas, etapas, deals, tickets, series, semanas, fechas, ultima, snaps };
+  return { catalogo, personas, ausencias, feriados, metas, etapas, deals, tickets, series, semanas, fechas, ultima, snaps, personaEquipos };
 }
 
 // ====================== Datos: ejemplo ======================
@@ -635,6 +711,84 @@ function hsDeal(id, texto) {
   return u ? `<a href="${u}" target="_blank" rel="noopener">${t}</a>` : t;
 }
 
+// ---------- Panel de detalle: todo número agregado abre su lista ----------
+const DRILL = new Map();
+let drillSeq = 0;
+// `calc` saca de los registros el mismo número que se muestra, para poder cotejarlo.
+function num(texto, titulo, registros, tipo, calc) {
+  const lista = registros || [];
+  if (!lista.length) return texto;
+  const id = 'd' + (++drillSeq);
+  DRILL.set(id, { titulo, registros: lista, tipo, mostrado: texto, calc: calc || null });
+  return `<button class="num" type="button" data-d="${id}">${texto}</button>`;
+}
+const COLS = {
+  tickets: [
+    ['id', 'Ticket', t => hsTicket(t.ticket_id, t.ticket_id), t => t.ticket_id],
+    ['asunto', 'Asunto', t => esc(t.asunto || ''), t => t.asunto || ''],
+    ['tipo', 'Tipo', t => esc(t.tipo || '—'), t => t.tipo || ''],
+    ['owner', 'Owner', t => esc(t.persona ? t.persona.nombre : (t.owner_id || 'Sin owner')), t => t.persona ? t.persona.nombre : (t.owner_id || '')],
+    ['etapa', 'Etapa', t => esc(t.etapa_ticket || '—'), t => t.etapa_ticket || ''],
+    ['edad', 'Edad', t => t.edad == null ? '—' : fmt1.format(t.edad) + ' d', t => t.edad ?? -1],
+    ['sla', 'SLA', t => slaTxt(t.sla), t => t.sla ?? -1],
+    ['atraso', 'Atraso', t => (t.sla == null || t.edad == null) ? '—' : fmt1.format(Math.max(0, t.edad - t.sla)) + ' d', t => (t.sla == null || t.edad == null) ? -1 : t.edad - t.sla],
+    ['estado', 'Estado', t => pillSla(t), t => t.estadoSla || ''],
+  ],
+  sitios: [
+    ['nombre', 'Sitio', d => hsDeal(d.deal_id, d.nombre || d.deal_id), d => d.nombre || ''],
+    ['etapa', 'Etapa', d => esc(d.etapaEtiqueta || d.etapa_id || '—'), d => d.etapaEtiqueta || ''],
+    ['kwp', 'kWp', d => fmt1.format(d.kwp || 0), d => d.kwp || 0],
+    ['inst', 'Instalación', d => esc(d.fecha_instalacion || '—'), d => d.fecha_instalacion || ''],
+  ],
+};
+const PANEL = { id: null, orden: null, asc: true, origen: null };
+function abrirDetalle(id, boton) {
+  const d = DRILL.get(id);
+  if (!d) return;
+  PANEL.id = id; PANEL.orden = null; PANEL.asc = true; PANEL.origen = boton || null;
+  pintarDetalle();
+  const el = document.getElementById('panel-det');
+  el.hidden = false;
+  document.getElementById('pd-x').focus();
+}
+function cerrarDetalle() {
+  const el = document.getElementById('panel-det');
+  if (!el || el.hidden) return;
+  el.hidden = true;
+  if (PANEL.origen && document.body.contains(PANEL.origen)) PANEL.origen.focus();
+  PANEL.id = null; PANEL.origen = null;
+}
+function pintarDetalle() {
+  const d = DRILL.get(PANEL.id);
+  if (!d) return;
+  const cols = COLS[d.tipo] || COLS.tickets;
+  let filas = [...d.registros];
+  if (PANEL.orden) {
+    const c = cols.find(x => x[0] === PANEL.orden);
+    if (c) filas.sort((a, b) => {
+      const va = c[3](a), vb = c[3](b);
+      const r = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es');
+      return PANEL.asc ? r : -r;
+    });
+  }
+  // El total del panel tiene que coincidir con el número que se clicó.
+  const calculado = d.calc ? d.calc(d.registros) : d.registros.length;
+  const mostrado = Number(String(d.mostrado).replace(/[^0-9.-]/g, ''));
+  const cuadra = !Number.isFinite(mostrado) || Math.abs(calculado - mostrado) < 0.05;
+  document.getElementById('pd-t').textContent = d.titulo;
+  document.getElementById('pd-n').innerHTML = `${fmt.format(d.registros.length)} ${d.registros.length === 1 ? 'registro' : 'registros'}`
+    + (d.calc ? ` · suman ${fmt1.format(calculado)}` : '')
+    + (cuadra ? '' : `<span class="pd-mal">No cuadra: la cifra dice ${esc(d.mostrado)} y la lista da ${fmt1.format(calculado)}</span>`);
+  document.getElementById('pd-c').innerHTML = `<div class="tabla"><table>
+    <thead><tr>${cols.map(c => `<th class="izq"><button type="button" class="pd-ord" data-c="${c[0]}" aria-sort="${PANEL.orden === c[0] ? (PANEL.asc ? 'ascending' : 'descending') : 'none'}">${esc(c[1])}${PANEL.orden === c[0] ? (PANEL.asc ? ' ↑' : ' ↓') : ''}</button></th>`).join('')}</tr></thead>
+    <tbody>${filas.map(r => `<tr>${cols.map(c => `<td class="izq">${c[2](r)}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table></div>`;
+  document.querySelectorAll('.pd-ord').forEach(b => b.addEventListener('click', () => {
+    if (PANEL.orden === b.dataset.c) PANEL.asc = !PANEL.asc; else { PANEL.orden = b.dataset.c; PANEL.asc = true; }
+    pintarDetalle();
+  }));
+}
+
 // ---------- Secciones colapsables ----------
 const ABIERTAS = (() => {
   try { return new Set(JSON.parse(localStorage.getItem('niko.secciones') || '[]')); }
@@ -679,6 +833,8 @@ function v(x) { return ESTADO.unidad === 'sitios' ? fmt.format(x.sitios) : fmt.f
 function u(n) { return ESTADO.unidad === 'sitios' ? (n === 1 ? 'sitio' : 'sitios') : 'kWp'; }
 function nSitios(n) { return `${fmt.format(n)} ${n === 1 ? 'sitio' : 'sitios'}`; }
 
+const calcU = ds => ESTADO.unidad === 'sitios' ? ds.length : ds.reduce((a, d) => a + (d.kwp || 0), 0);
+
 function vistaMeta(M) {
   const k = ESTADO.unidad;
   const g = M.goal[k] || 1;
@@ -688,8 +844,8 @@ function vistaMeta(M) {
   return `<section class="meta" aria-label="Meta del mes">
     <div class="meta-cifras">
       ${cifra('goal', v(M.goal), 'Company Goal', `Lo prometido para ${MESES[m - 1]} ${a}`, 'goal')}
-      ${cifra('forecast', v(M.forecast), 'Forecast', `Lo que la capacidad actual alcanza a entregar, de ${v(M.plan)} comprometidos`, 'fc')}
-      ${cifra('real', v(M.real), 'Real', `${ESTADO.unidad === 'sitios' ? 'Sitios' : 'kWp'} que ya llegaron a instalación`, 're')}
+      ${cifra('forecast', num(v(M.forecast), 'Forecast del mes', M.listas.forecast, 'sitios', calcU), 'Forecast', `Lo que la capacidad actual alcanza a entregar, de ${num(v(M.plan), 'Sitios comprometidos del mes', M.listas.plan, 'sitios', calcU)} comprometidos`, 'fc')}
+      ${cifra('real', num(v(M.real), 'Real del mes', M.listas.real, 'sitios', calcU), 'Real', `${ESTADO.unidad === 'sitios' ? 'Sitios' : 'kWp'} que ya llegaron a instalación`, 're')}
       ${cifra('delta ' + (delta < 0 ? 'neg' : 'pos'), (delta > 0 ? '+' : '') + fmt.format(delta), 'Delta', `Forecast contra goal, en ${u()}`)}
     </div>
     <div class="barra" role="img" aria-label="Real ${v(M.real)}, forecast ${v(M.forecast)} y goal ${v(M.goal)} ${u()}">
@@ -740,7 +896,7 @@ function vistaCadena(etapas, sem) {
   const tarjeta = e => `
       <div class="etapa ${e.es_instalado ? 'inst' : ''}" title="${esc(e.etiqueta)}: ${nSitios(e.sitios)}, ${fmt1.format(e.kwp)} kWp">
         <div class="e">${esc(e.etiqueta)}</div>
-        <div class="v">${k === 'sitios' ? e.sitios : fmt.format(e.kwp)}</div>
+        <div class="v">${num(k === 'sitios' ? e.sitios : fmt.format(e.kwp), `${e.etiqueta} · foto más reciente`, e.ds, 'sitios', calcU)}</div>
         <div class="k">${k === 'sitios' ? fmt.format(e.kwp) + ' kWp' : nSitios(e.sitios)}</div>
         ${desdeT0(e)}
       </div>`;
@@ -769,10 +925,15 @@ const slaTxt = d => d == null ? '—' : d < 1 ? `${fmt1.format(d * 8)} h` : `${f
 const marcaSupuesto = (txt, firme) => firme ? txt : `<span class="supuesto" title="Valor del catálogo aún no firmado">${txt}</span>`;
 
 function vistaFlujo(M, raw) {
-  const R = M.resumen;
+  const R = M.resumen, L = M.lResumen;
   const sem = M.semanas;
   const etapas = M.porEtapa;
   const delta = (a, b) => { const d = a - b; return d === 0 ? '' : `<span class="dif">${d > 0 ? '+' : '−'}${fmt.format(Math.abs(d))}</span>`; };
+  // La serie histórica solo guarda ids: el nombre se toma de la foto más reciente.
+  const nombrePorDeal = {};
+  for (const e of etapas) for (const d of (e.ds || [])) nombrePorDeal[d.deal_id] = d.nombre;
+  const sitiosDe = (s, e) => (s.filas || []).filter(r => r.etapa_id === e.etapa_id)
+    .map(r => ({ deal_id: r.deal_id, nombre: nombrePorDeal[r.deal_id] || r.deal_id, kwp: r.kwp, etapaEtiqueta: e.etiqueta }));
   const vencidos = M.abiertos.filter(t => t.estadoSla === 'vencido').sort((a, b) => (b.edad - b.sla) - (a.edad - a.sla)).slice(0, 25);
   const fH = fuenteHubspot(raw);
   const fCat = fuenteManual(raw.catalogo, 'catálogo de tickets');
@@ -781,10 +942,10 @@ function vistaFlujo(M, raw) {
 
   return `
     <div class="resumen">
-      <div><b>${fmt.format(R.abiertos)}</b><span>tickets abiertos ${info('abiertos')}</span></div>
-      <div><b>${fmt.format(R.vencidos)}</b><span>fuera de SLA ${info('vencidos')}</span></div>
-      <div><b>${fmt.format(R.riesgo)}</b><span>en riesgo ${info('riesgo')}</span></div>
-      <div><b>${pct(R.cumplimiento)}</b><span>cerrados a tiempo ${info('cumplimiento')}</span></div>
+      <div><b>${num(fmt.format(R.abiertos), 'Tickets abiertos', L.abiertos, 'tickets')}</b><span>tickets abiertos ${info('abiertos')}</span></div>
+      <div><b>${num(fmt.format(R.vencidos), 'Tickets fuera de SLA', L.vencidos, 'tickets')}</b><span>fuera de SLA ${info('vencidos')}</span></div>
+      <div><b>${num(fmt.format(R.riesgo), 'Tickets en riesgo', L.riesgo, 'tickets')}</b><span>en riesgo ${info('riesgo')}</span></div>
+      <div><b>${num(pct(R.cumplimiento), 'Cerrados en los últimos 28 días con SLA', L.cerrados28, 'tickets', ts => ts.length ? Math.round(ts.filter(t => t.edad <= t.sla).length / ts.length * 100) : 0)}</b><span>cerrados a tiempo ${info('cumplimiento')}</span></div>
       <div><b>${fmt.format(R.sitiosT0)} · ${fmt.format(R.kwpT0)}</b><span>sitios y kWp en T0 ${info('t0')}</span></div>
     </div>
 
@@ -800,7 +961,8 @@ function vistaFlujo(M, raw) {
       </thead>
       <tbody>${etapas.map(e => `<tr><td>${esc(e.etiqueta)}</td>${sem.map((s, i) => {
         const x = s.porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 }, x0 = sem[0].porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 };
-        return `<td class="par">${fmt.format(x.sitios)}${i ? delta(x.sitios, x0.sitios) : ''}</td><td>${fmt.format(x.kwp)}${i ? delta(x.kwp, x0.kwp) : ''}</td>`;
+        const ds = sitiosDe(s, e);
+        return `<td class="par">${num(fmt.format(x.sitios), `${e.etiqueta} · ${s.etiqueta} ${s.fecha}`, ds, 'sitios')}${i ? delta(x.sitios, x0.sitios) : ''}</td><td>${num(fmt.format(x.kwp), `${e.etiqueta} · ${s.etiqueta} ${s.fecha} · kWp`, ds, 'sitios', dd => dd.reduce((a, d) => a + (d.kwp || 0), 0))}${i ? delta(x.kwp, x0.kwp) : ''}</td>`;
       }).join('')}</tr>`).join('')}</tbody>
       <tfoot><tr><td>Total</td>${sem.map((s, i) => `
         <td class="par">${fmt.format(s.sitios)}${i ? delta(s.sitios, sem[0].sitios) : ''}</td>
@@ -816,13 +978,13 @@ function vistaFlujo(M, raw) {
         <td>${esc(r.tipo || 'Sin tipo')}<br><small>${esc(r.segmento || 'sin segmento')}</small></td>
         <td class="izq">${esc(r.equipo || '—')}</td>
         <td>${r.sla == null ? '<span class="pill mute">Por definir</span>' : marcaSupuesto(slaTxt(r.sla), r.firme)}</td>
-        <td>${r.abiertos}</td>
-        <td>${r.vencidos ? `<span class="pill bad">${r.vencidos}</span>` : 0}</td>
-        <td>${r.riesgo ? `<span class="pill warn">${r.riesgo}</span>` : 0}</td>
-        <td>${r.edadMediana == null ? '—' : fmt1.format(r.edadMediana)}</td>
-        <td>${r.creados28}</td><td>${r.cerrados28}</td>
-        <td>${pct(r.cumplimiento)}</td>
-        <td>${marcaSupuesto(fmt1.format(r.horasBacklog), r.firme)}</td></tr>`).join('')}</tbody>
+        <td>${num(r.abiertos, `Abiertos · ${r.tipo}`, r.lAbiertos, 'tickets')}</td>
+        <td>${r.vencidos ? `<span class="pill bad">${num(r.vencidos, `Vencidos · ${r.tipo}`, r.lVencidos, 'tickets')}</span>` : 0}</td>
+        <td>${r.riesgo ? `<span class="pill warn">${num(r.riesgo, `En riesgo · ${r.tipo}`, r.lRiesgo, 'tickets')}</span>` : 0}</td>
+        <td>${r.edadMediana == null ? '—' : num(fmt1.format(r.edadMediana), `Edad mediana · ${r.tipo}`, r.lAbiertos, 'tickets')}</td>
+        <td>${num(r.creados28, `Entraron en 28 días · ${r.tipo}`, r.lCreados28, 'tickets')}</td><td>${num(r.cerrados28, `Salieron en 28 días · ${r.tipo}`, r.lCerrados28, 'tickets')}</td>
+        <td>${num(pct(r.cumplimiento), `Cerrados con SLA · ${r.tipo}`, r.lConSla, 'tickets', ts => ts.length ? Math.round(ts.filter(t => t.edad <= t.sla).length / ts.length * 100) : 0)}</td>
+        <td>${marcaSupuesto(num(fmt1.format(r.horasBacklog), `Horas en fila · ${r.tipo}`, r.lAbiertos, 'tickets', ts => ts.reduce((a, t) => a + (t.horas || 0), 0)), r.firme)}</td></tr>`).join('')}</tbody>
     </table></div>`)}
 
     ${seccion('atrasados', 'Tickets más atrasados', 'atraso',
@@ -865,17 +1027,17 @@ function vistaCapacidad(M, raw) {
       `<div class="equipos">${M.equipos.map(e => `
       <article class="equipo ${e.nivel}">
         <h3><span>${esc(e.nombre)}</span><span class="pill ${e.nivel}">${e.sinDatos ? 'Sin esfuerzo definido' : e.nivel === 'bad' ? 'Saturado' : e.nivel === 'warn' ? 'Al límite' : 'Con espacio'}</span></h3>
-        <div class="util ${e.nivel === 'bad' ? 'bad' : ''}">${e.sinDatos ? '—' : pct(e.util)}</div>
-        <div class="nota" style="margin:0">${fmt.format(e.reqH)} h requeridas de ${fmt.format(e.dispH)} h disponibles · ${e.backlogN} abiertos</div>
+        <div class="util ${e.nivel === 'bad' ? 'bad' : ''}">${e.sinDatos ? '—' : num(pct(e.util), `Utilización · ${e.nombre}`, e.abiertos, 'tickets')}</div>
+        <div class="nota" style="margin:0">${num(fmt.format(e.reqH), `Horas requeridas · ${e.nombre}`, e.abiertos, 'tickets', ts => ts.reduce((a, t) => a + (t.horas || 0), 0))} h requeridas de ${fmt.format(e.dispH)} h disponibles · ${num(e.backlogN, `Abiertos · ${e.nombre}`, e.abiertos, 'tickets')} abiertos${e.supuesto ? ' · <span class="supuesto">reparto supuesto</span>' : ''}</div>
         ${sparkline(e.proyeccion)}
         <div class="nota" style="margin:2px 0 0">${e.sinDatos ? 'Sin esfuerzo en el catálogo: no se puede proyectar' : e.diaVacio > 0 ? `La fila se vacía el ${isoDay(M.dias[e.diaVacio - 1])}` : e.backlogH === 0 ? 'Sin fila' : `Quedan ${fmt.format(e.proyeccion[e.proyeccion.length - 1])} h en fila al final del horizonte`}</div>
         ${e.alertas.length ? `<ul>${e.alertas.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
       </article>`).join('')}
     </div>
-    ${M.sinPersona.length ? `<p class="aviso error">${M.sinPersona.length} tickets abiertos tienen un owner que no está en la tabla de personas, así que no cuentan en ninguna capacidad. ${info('sinOwner')}</p>` : ''}`)}
+    ${M.sinPersona.length ? `<p class="aviso error">${num(M.sinPersona.length, 'Tickets con owner fuera de personas', M.sinPersona, 'tickets')} tickets abiertos tienen un owner que no está en la tabla de personas, así que no cuentan en ninguna capacidad. ${info('sinOwner')}</p>` : ''}`)}
 
     ${M.ticketsInactivos.length ? seccion('zombis', 'Tickets en deals inactivos', 'ticketsInactivos',
-      `${M.ticketsInactivos.length} por cerrar`, fH,
+      `${num(M.ticketsInactivos.length, 'Tickets en deals inactivos', M.ticketsInactivos, 'tickets')} por cerrar`, fH,
       `<div class="tabla"><table>
         <thead><tr><th class="izq">Ticket</th><th class="izq">Tipo</th><th class="izq">Owner</th><th class="izq">Etapa del deal</th></tr></thead>
         <tbody>${M.ticketsInactivos.map(t => `<tr>
@@ -893,9 +1055,9 @@ function vistaCapacidad(M, raw) {
       <tbody>${[...M.personas].sort((a, b) => (b.util ?? 0) - (a.util ?? 0)).map(p => `<tr>
         <td>${esc(p.nombre)}</td><td class="izq">${esc(p.equipo)}</td><td>${pct(p.foco)}</td>
         <td>${p.ausenciasH ? `<span class="pill">${fmt.format(p.ausenciasH)} h fuera</span>` : 0}</td>
-        <td>${fmt.format(p.dispH)}</td><td>${fmt.format(p.reqH)}</td>
-        <td><span class="pill ${p.util == null || (p.backlogN && p.sinEsfuerzo === p.backlogN) ? 'mute' : p.util > 1 ? 'bad' : p.util > 0.85 ? 'warn' : 'ok'}">${p.backlogN && p.sinEsfuerzo === p.backlogN ? 'Sin esfuerzo' : pct(p.util)}</span></td>
-        <td>${p.backlogN}${p.sinEsfuerzo ? ` <small>(${p.sinEsfuerzo} sin esfuerzo)</small>` : ''}</td>
+        <td>${fmt.format(p.dispH)}</td><td>${num(fmt.format(p.reqH), `Horas requeridas · ${p.nombre}`, p.lAbiertos, 'tickets', ts => ts.reduce((a, t) => a + (t.horas || 0), 0))}</td>
+        <td><span class="pill ${p.util == null || (p.backlogN && p.sinEsfuerzo === p.backlogN) ? 'mute' : p.util > 1 ? 'bad' : p.util > 0.85 ? 'warn' : 'ok'}">${p.backlogN && p.sinEsfuerzo === p.backlogN ? 'Sin esfuerzo' : num(pct(p.util), `Utilización · ${p.nombre}`, p.lAbiertos, 'tickets')}</span></td>
+        <td>${num(p.backlogN, `Abiertos · ${p.nombre}`, p.lAbiertos, 'tickets')}${p.sinEsfuerzo ? ` <small>(${p.sinEsfuerzo} sin esfuerzo)</small>` : ''}</td>
         <td>${p.ticketsQueCaben ?? '—'}</td><td>${fd(p.colaDias)}</td><td>${fd(p.diasVaciar)}</td></tr>`).join('')}</tbody>
     </table></div>`)}
 
@@ -910,6 +1072,7 @@ function vistaCapacidad(M, raw) {
 
 function render() {
   const M = ESTADO.modelo, raw = ESTADO.raw;
+  DRILL.clear(); drillSeq = 0;
   const segmentos = [...new Set(raw.etapas.map(e => e.pipeline))].filter(Boolean);
   const meses = []; const base = new Date(HOY);
   for (let i = -2; i <= 3; i++) { const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + i, 1)); meses.push(isoDay(d.getTime()).slice(0, 7)); }
@@ -934,7 +1097,12 @@ function render() {
       <button role="tab" id="t-cap" aria-controls="p-cap" aria-selected="${ESTADO.tab === 'cap'}">Capacidad y saturación</button>
     </div>
     <section class="panel" id="p-flujo" role="tabpanel" aria-labelledby="t-flujo" ${ESTADO.tab === 'flujo' ? '' : 'hidden'}>${vistaFlujo(M, raw)}</section>
-    <section class="panel" id="p-cap" role="tabpanel" aria-labelledby="t-cap" ${ESTADO.tab === 'cap' ? '' : 'hidden'}>${vistaCapacidad(M, raw)}</section>`;
+    <section class="panel" id="p-cap" role="tabpanel" aria-labelledby="t-cap" ${ESTADO.tab === 'cap' ? '' : 'hidden'}>${vistaCapacidad(M, raw)}</section>
+    <aside class="panel-det" id="panel-det" role="dialog" aria-modal="true" aria-labelledby="pd-t" hidden>
+      <header><h2 id="pd-t"></h2><button type="button" id="pd-x">Cerrar</button></header>
+      <p class="pd-n" id="pd-n"></p>
+      <div id="pd-c"></div>
+    </aside>`;
 
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   on('c-mes', 'change', e => { ESTADO.mes = e.target.value; recalcular(); });
@@ -945,6 +1113,13 @@ function render() {
   on('t-flujo', 'click', () => { ESTADO.tab = 'flujo'; render(); });
   on('t-cap', 'click', () => { ESTADO.tab = 'cap'; render(); });
   on('c-salir', 'click', async () => { await sb.auth.signOut(); location.reload(); });
+
+  // Panel de detalle: abrir, cerrar con Esc o con el botón.
+  app.querySelectorAll('.num').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation(); abrirDetalle(b.dataset.d, b);
+  }));
+  on('pd-x', 'click', cerrarDetalle);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarDetalle(); });
 
   // Secciones colapsables: el estado se recuerda por persona en localStorage.
   app.querySelectorAll('.sec-t').forEach(b => b.addEventListener('click', () => {

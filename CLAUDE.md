@@ -115,6 +115,23 @@ Aplican a toda vista nueva, no solo a las existentes.
    `hsDeal()`. Aplica a todas las tablas y listas.
 5. **No desperdiciar espacio.** Densidad alta: márgenes chicos, tarjetas bajas, tablas
    compactas, controles en una sola fila cuando quepan.
+6. **Todo número es clicable.** Cada número agregado abre un panel lateral con la lista
+   exacta de registros que lo forman. Se construye con el helper `num(texto, título,
+   registros, tipo, calc)`: el panel dice qué se ve y cuántos registros son, se ordena
+   por columna, se cierra con Esc o con su botón y devuelve el foco. `calc` recalcula la
+   cifra desde los registros; **si no coincide con el número clicado, el panel lo dice en
+   rojo**. Los números clicables llevan subrayado de puntos. Si una cifra no tiene lista
+   detrás (Goal, Delta), no se vuelve clicable.
+
+## Capacidad por pipeline
+
+- **La demanda es del pipeline del ticket** (`tickets_snapshot.equipo`), no del equipo de
+  la persona. Los equipos del dashboard son los pipelines de ticket.
+- **La oferta se reparte** con los pesos de cada persona: `persona_equipos` manda; si no
+  hay filas y `personas.equipo` trae «/», se reparte según la mezcla de pipelines de sus
+  tickets creados en los últimos 28 días y queda marcado como **supuesto**; en cualquier
+  otro caso, todo va a `personas.equipo`.
+- Por eso «Design / Engineering» ya no aparece como equipo propio.
 
 ## Reglas de trabajo
 
