@@ -160,6 +160,14 @@ Aplican a toda vista nueva, no solo a las existentes.
 - Si una cola no tiene esfuerzo en el catálogo, **no se inventa**: la etapa queda detenida
   en el pronóstico y se avisa en rojo.
 - El pronóstico y los cuellos de botella salen de la **misma** función `pronostico()`.
+- **Entra demanda nueva** con dos ritmos: el real (sitios que aparecen entre fotos, de las
+  últimas 4) o el de la meta (los que harían falta despejando las conversiones). La
+  sección de cuellos dice cuál está usando.
+- **El pronóstico base se guarda a diario** en la tabla `pronosticos` desde el workflow,
+  sin los controles del simulador. Cuando llega la foto real, la tabla de T0 muestra el
+  pronóstico junto al dato.
+- ⚠️ **La lógica del pronóstico vive en dos lados**: `pronostico()` en `index.html` y
+  `guardarPronostico()` en `scripts/sync-hubspot.mjs`. Si cambia una, hay que cambiar la otra.
 - El simulador cambia solo `ESTADO.sim`; nunca toca los datos.
 
 ## Reglas de trabajo

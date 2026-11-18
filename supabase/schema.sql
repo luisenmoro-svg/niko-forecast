@@ -104,6 +104,22 @@ alter table deals_snapshot add column if not exists kwp_fuente text;
 create index if not exists deals_snapshot_etapa on deals_snapshot (snapshot_date, etapa_id);
 create index if not exists tickets_snapshot_owner on tickets_snapshot (snapshot_date, owner_id);
 
+-- ---------- Pronósticos guardados ----------
+-- Una foto del pronóstico base (sin los controles del simulador) por día.
+create table if not exists pronosticos (
+  calculado_el   date not null,                   -- día en que se calculó
+  semana         integer not null,                -- 1S, 2S… desde el cálculo
+  semana_fecha   date not null,                   -- día hábil al que apunta
+  etapa_id       text,                            -- null en las filas de equipo
+  equipo         text,                            -- null en las filas de etapa
+  sitios         numeric,
+  kwp            numeric,
+  demanda_h      numeric,                         -- solo en filas de equipo
+  capacidad_h    numeric,                         -- solo en filas de equipo
+  primary key (calculado_el, semana, etapa_id, equipo)
+);
+create index if not exists pronosticos_semana on pronosticos (semana_fecha);
+
 -- ---------- Seguridad ----------
 -- Solo personas autenticadas con correo del dominio pueden leer.
 -- El script de sincronización usa la service role key y no pasa por RLS.
@@ -112,7 +128,8 @@ do $$
 declare t text;
 begin
   foreach t in array array['catalogo','personas','ausencias','feriados','metas',
-                           'etapas_deal','snapshots','deals_snapshot','tickets_snapshot']
+                           'etapas_deal','snapshots','deals_snapshot','tickets_snapshot',
+                           'pronosticos']
   loop
     execute format('alter table %I enable row level security', t);
     execute format('drop policy if exists lectura_dominio on %I', t);

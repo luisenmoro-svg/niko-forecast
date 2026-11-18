@@ -95,6 +95,7 @@ table.t0 th.par, table.t0 td.par { border-left: 1px solid var(--hs-border); }
 table.t0 th.sub { font-size: 11px; font-weight: 500; color: var(--hs-muted); }
 table.t0 .fut { border-top: 1px dashed var(--hs-border); border-bottom: 1px dashed var(--hs-border); color: var(--hs-muted); background: repeating-linear-gradient(45deg, transparent 0 6px, rgba(150,163,181,.06) 6px 12px); }
 table.t0 th.fut { font-style: italic; }
+.vspron { display: block; font-size: 10px; color: var(--hs-muted); font-style: italic; }
 
 /* ---- Secciones colapsables ---- */
 .sec { margin-top: 10px; }
@@ -569,6 +570,7 @@ async function cargarSupabase(t0) {
     traerTodo('snapshots', 'snapshot_date,creado', q => q.order('snapshot_date')),
   ]);
   const personaEquipos = await traerOpcional('persona_equipos', '*');
+  const pronosGuardados = await traerOpcional('pronosticos', 'semana_fecha,etapa_id,sitios,kwp');
   if (!snaps.length) throw new Error('Todavía no hay fotos de HubSpot. Corre el workflow «Foto de HubSpot» en GitHub Actions.');
   FERIADOS = new Set(feriados.map(f => toDay(f.fecha)));
   const fechas = snaps.map(s => s.snapshot_date);
@@ -579,7 +581,7 @@ async function cargarSupabase(t0) {
     traerTodo('tickets_snapshot', '*', q => q.eq('snapshot_date', ultima)),
     traerTodo('deals_snapshot', 'snapshot_date,deal_id,etapa_id,kwp,segmento', q => q.in('snapshot_date', semanas)),
   ]);
-  return { catalogo, personas, ausencias, feriados, metas, etapas, deals, tickets, series, semanas, fechas, ultima, snaps, personaEquipos };
+  return { catalogo, personas, ausencias, feriados, metas, etapas, deals, tickets, series, semanas, fechas, ultima, snaps, personaEquipos, pronosGuardados };
 }
 
 // ====================== Datos: ejemplo ======================
@@ -661,7 +663,7 @@ function datosEjemplo() {
     }
   });
   return { catalogo, personas, ausencias, feriados, metas, etapas, deals, tickets, series, semanas, fechas: semanas, ultima: semanas[semanas.length - 1],
-    snaps: semanas.map(f => ({ snapshot_date: f, creado: new Date(toDay(f) + 13 * 36e5).toISOString() })) };
+    snaps: semanas.map(f => ({ snapshot_date: f, creado: new Date(toDay(f) + 13 * 36e5).toISOString() })), pronosGuardados: [] };
 }
 
 // ====================== Pronóstico por colas de capacidad ======================
@@ -670,6 +672,32 @@ function datosEjemplo() {
 // Las etapas que no gobierna un ticket (lotes de 2.01, espera de cuadrilla en 2.14)
 // usan los días del Reverse Eng Model, marcados «según proceso».
 // Los tiempos por etapa de HubSpot NO se usan: se mueven por lotes, no miden el proceso.
+// Sitios que entraron a la cadena por semana en las últimas 4 fotos: deal_ids que
+// aparecen y antes no estaban. Es el ritmo real de entrada.
+function entradaReal(M) {
+  const sem = M.semanas || [];
+  if (sem.length < 2) return null;
+  const desde = Math.max(1, sem.length - 4);
+  let nuevos = 0, kwp = 0, intervalos = 0;
+  for (let i = desde; i < sem.length; i++) {
+    const antes = new Set((sem[i - 1].filas || []).map(r => r.deal_id));
+    const entran = (sem[i].filas || []).filter(r => !antes.has(r.deal_id));
+    nuevos += entran.length; kwp += sum(entran, r => r.kwp); intervalos++;
+  }
+  if (!intervalos) return null;
+  return { sitios: nuevos / intervalos, kwpPorSitio: nuevos ? kwp / nuevos : 0, intervalos };
+}
+
+// Los que tendrían que entrar para sostener la meta, despejando hacia atrás las
+// tasas de conversión de toda la cadena.
+function entradaMeta(M) {
+  const metaMes = M.metricas.goal.sitios || 0;
+  const conv = (CFG.ritmoEtapas || []).reduce((a, r) => a * (r.conversion == null ? 1 : r.conversion), 1);
+  const porSemana = metaMes / 4.33;
+  return { sitios: conv > 0 ? porSemana / conv : 0, conv,
+           kwpPorSitio: metaMes ? (M.metricas.goal.kwp || 0) / metaMes : 0 };
+}
+
 function pronostico(M, sim) {
   const S = sim || {};
   const ritmos = CFG.ritmoEtapas || [];
@@ -703,6 +731,11 @@ function pronostico(M, sim) {
 
   const META = (CFG.etapasPostInstalacion || []);
   const instalada = id => !porId[id] && !META.includes(id);
+  // Ritmo de entrada: real (por defecto) o el que haría falta para la meta.
+  const modoEntrada = S.entrada || 'real';
+  const eReal = entradaReal(M), eMeta = entradaMeta(M);
+  const entrada = modoEntrada === 'meta' ? eMeta : eReal;
+
   const salida = [];
   const sinEsfuerzo = new Set();
   const demandaEquipo = {};   // equipo -> [horas por semana]
@@ -749,6 +782,13 @@ function pronostico(M, sim) {
       siguiente[destino].sitios += pasan;
       siguiente[destino].kwp += pasan * kwpPorSitio;
     });
+    // Entrada de demanda nueva en la primera etapa de la cadena.
+    if (entrada && entrada.sitios > 0 && ritmos.length) {
+      const primera = ritmos[0].id;
+      estado[primera] = estado[primera] || { sitios: 0, kwp: 0, etiqueta: ritmos[0].cod };
+      estado[primera].sitios += entrada.sitios;
+      estado[primera].kwp += entrada.sitios * (entrada.kwpPorSitio || 0);
+    }
     let instalados = { sitios: 0, kwp: 0 };
     for (const [id, v] of Object.entries(siguiente)) {
       if (id === 'INSTALADO') { instalados = v; continue; }
@@ -777,7 +817,7 @@ function pronostico(M, sim) {
              esfuerzo: ritmos.filter(r => r.equipo === nombre).map(r => ({ ticket: r.ticket, ...esfuerzoDe(r.ticket) })) };
   }).sort((a, b) => (a.primeraSemana ?? 99) - (b.primeraSemana ?? 99));
 
-  return { semanas: salida, cuellos, capSemana, sinEsfuerzo: [...sinEsfuerzo] };
+  return { semanas: salida, cuellos, capSemana, sinEsfuerzo: [...sinEsfuerzo], entrada, modoEntrada, eReal, eMeta };
 }
 
 // ====================== Vista ======================
@@ -1123,6 +1163,9 @@ function vistaFlujo(M, raw) {
   const R = M.resumen, L = M.lResumen;
   const sem = M.semanas;
   const P = pronostico(M, ESTADO.sim);
+  // Si existe un pronóstico guardado para esa fecha y etapa, se muestra junto al real.
+  const guardados = raw.pronosGuardados || [];
+  const prevision = (fecha, etapaId) => guardados.find(g => g.semana_fecha === fecha && g.etapa_id === etapaId) || null;
   const etapas = M.porEtapa;
   const delta = (a, b) => { const d = a - b; return d === 0 ? '' : `<span class="dif">${d > 0 ? '+' : '−'}${fmt.format(Math.abs(d))}</span>`; };
   // La serie histórica solo guarda ids: el nombre se toma de la foto más reciente.
@@ -1164,7 +1207,8 @@ function vistaFlujo(M, raw) {
       <tbody>${etapas.map(e => `<tr><td>${esc(e.etiqueta)}${ritmoInfo(e.etapa_id)}</td>${sem.map((s, i) => {
         const x = s.porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 }, x0 = sem[0].porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 };
         const ds = sitiosDe(s, e);
-        return `<td class="par">${num(fmt.format(x.sitios), `${e.etiqueta} · ${s.etiqueta} ${s.fecha}`, ds, 'sitios')}${i ? delta(x.sitios, x0.sitios) : ''}</td><td>${num(fmt.format(x.kwp), `${e.etiqueta} · ${s.etiqueta} ${s.fecha} · kWp`, ds, 'sitios', { explica: `Suma de kWp de ${fmt.format(ds.length)} sitios en ${e.etiqueta} el ${s.fecha}: ${fmt1.format(x.kwp)} kWp`, ordenar: 'kwp' })}${i ? delta(x.kwp, x0.kwp) : ''}</td>`;
+        const pr = prevision(s.fecha, e.etapa_id);
+        return `<td class="par">${num(fmt.format(x.sitios), `${e.etiqueta} · ${s.etiqueta} ${s.fecha}`, ds, 'sitios')}${i ? delta(x.sitios, x0.sitios) : ''}${pr ? `<span class="vspron" title="Se había pronosticado ${fmt1.format(pr.sitios)}">pron. ${fmt1.format(pr.sitios)}</span>` : ''}</td><td>${num(fmt.format(x.kwp), `${e.etiqueta} · ${s.etiqueta} ${s.fecha} · kWp`, ds, 'sitios', { explica: `Suma de kWp de ${fmt.format(ds.length)} sitios en ${e.etiqueta} el ${s.fecha}: ${fmt1.format(x.kwp)} kWp`, ordenar: 'kwp' })}${i ? delta(x.kwp, x0.kwp) : ''}</td>`;
       }).join('')}${P.semanas.map(f => { const x = f.porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 };
         return `<td class="par fut">${fmt.format(x.sitios)}</td><td class="fut">${fmt.format(x.kwp)}</td>`; }).join('')}</tr>`).join('')}</tbody>
       <tfoot><tr><td>Llegan a instalación</td>${sem.map(() => '<td class="par"></td><td></td>').join('')}${P.semanas.map(f => `<td class="par fut">${fmt1.format(f.instalados.sitios)}</td><td class="fut">${fmt.format(f.instalados.kwp)}</td>`).join('')}</tr>
@@ -1259,7 +1303,12 @@ function vistaCapacidad(M, raw) {
       return seccion('cuellos', 'Próximos cuellos de botella', 'cuellos',
         resumen ? `${resumen} de ${P.cuellos.length} equipos se saturan` : 'ningún equipo se satura',
         `Pronóstico preliminar · demanda de las colas contra la capacidad del equipo, ${P.semanas.length} semanas`,
-        `${P.sinEsfuerzo.length ? `<p class="aviso error">${P.sinEsfuerzo.length} colas no se pueden proyectar porque su ticket no tiene esfuerzo en el catálogo: ${P.sinEsfuerzo.map(esc).join(', ')}. Esas etapas quedan detenidas en el pronóstico.</p>` : ''}
+        `<p class="fuente">${P.modoEntrada === 'meta'
+            ? `Entran <b>${fmt1.format(P.eMeta.sitios)} sitios por semana</b>, los que harían falta para la meta de ${fmt.format(M.metricas.goal.sitios)} al mes despejando las conversiones (${pct(P.eMeta.conv)} sobrevive la cadena).`
+            : P.eReal
+              ? `Entran <b>${fmt1.format(P.eReal.sitios)} sitios por semana</b>, el ritmo real de las últimas ${P.eReal.intervalos} fotos.`
+              : 'Sin suficientes fotos para medir el ritmo de entrada: el pronóstico solo vacía lo que hay hoy.'}</p>
+        ${P.sinEsfuerzo.length ? `<p class="aviso error">${P.sinEsfuerzo.length} colas no se pueden proyectar porque su ticket no tiene esfuerzo en el catálogo: ${P.sinEsfuerzo.map(esc).join(', ')}. Esas etapas quedan detenidas en el pronóstico.</p>` : ''}
         <p class="aviso">Pronóstico preliminar. El ritmo de cada etapa sale de la capacidad del equipo que cierra su ticket, o de los días del Reverse Eng Model. <b>No usa los tiempos por etapa de HubSpot</b>, que se mueven por lotes.</p>
         ${P.cuellos.map(c => `<details class="cuello">
           <summary><b>${esc(c.nombre)}</b>: ${frase(c)}</summary>
@@ -1331,6 +1380,7 @@ function render() {
       <label>Esfuerzo <select id="s-esf">${[0.5,0.75,1,1.5,2].map(f => `<option value="${f}" ${ESTADO.sim.multEsfuerzo === f ? 'selected' : ''}>×${f}</option>`).join('')}</select></label>
       <label>+1 persona en <select id="s-extra"><option value="">—</option>${[...new Set((CFG.ritmoEtapas||[]).filter(r=>r.equipo).map(r=>r.equipo))].map(e => `<option value="${esc(e)}" ${ESTADO.sim.extraPersonas[e] ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></label>
       <label>Días de 2.01 <input type="number" id="s-d201" min="1" step="1" style="width:56px" value="${ESTADO.sim.diasEtapa['2.01'] ?? 9}"></label>
+      <label>Entran sitios <select id="s-entrada"><option value="real" ${ESTADO.sim.entrada !== 'meta' ? 'selected' : ''}>al ritmo real</option><option value="meta" ${ESTADO.sim.entrada === 'meta' ? 'selected' : ''}>al ritmo de la meta</option></select></label>
       <button type="button" id="s-reset">Volver a lo real</button>
       ${ESTADO.simOn ? '<span class="pill warn">Simulando: los datos reales no cambian</span>' : ''}
     </div>
@@ -1359,6 +1409,7 @@ function render() {
   on('s-meta', 'change', e => { ESTADO.sim.meta = Number(e.target.value) || null; simCambio(); });
   on('s-d201', 'change', e => { ESTADO.sim.diasEtapa['2.01'] = Number(e.target.value) || 9; simCambio(); });
   on('s-extra', 'change', e => { ESTADO.sim.extraPersonas = e.target.value ? { [e.target.value]: 1 } : {}; simCambio(); });
+  on('s-entrada', 'change', e => { ESTADO.sim.entrada = e.target.value; simCambio(); });
   on('s-reset', 'click', () => { ESTADO.sim = { ...SIM0, extraPersonas: {}, diasEtapa: {} }; ESTADO.simOn = false; render(); });
 
   // Panel de detalle: abrir, cerrar con Esc o con el botón.

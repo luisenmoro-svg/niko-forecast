@@ -186,6 +186,98 @@ async function main() {
   await upsert('deals_snapshot', filasDeals, 'snapshot_date,deal_id');
   await upsert('tickets_snapshot', filasTickets, 'snapshot_date,ticket_id');
   console.log(`Listo: ${filasDeals.length} deals y ${filasTickets.length} tickets guardados.`);
+
+  await guardarPronostico(hoyCDMX, filasDeals, filasTickets);
+}
+
+// ---------- Pronóstico base del día ----------
+// Mismo modelo que el dashboard: la cadena son colas y lo que sale cada semana es lo
+// que el equipo alcanza a cerrar. Sin los controles del simulador.
+// OJO: la lógica vive en dos lados (aquí y en index.html > pronostico()). Si cambia una,
+// hay que cambiar la otra.
+async function guardarPronostico(hoy, deals, tickets) {
+  const cfg = await leerConfig();
+  if (!cfg) { console.log('Sin ritmoEtapas en config.js: no se guarda pronóstico.'); return; }
+  const [catalogo, personas, ausencias] = await Promise.all([
+    sbGet('catalogo', 'tipo,esfuerzo_prod_h'),
+    sbGet('personas', 'owner_id,equipo,fte,jornada_h,foco,activo'),
+    sbGet('ausencias', 'owner_id,fecha,horas'),
+  ]);
+  const esfuerzoDe = t => {
+    if (cfg.esfuerzoCalibrado && cfg.esfuerzoCalibrado[t] != null) return cfg.esfuerzoCalibrado[t];
+    const c = catalogo.find(x => x.tipo === t);
+    const h = c && c.esfuerzo_prod_h != null ? Number(c.esfuerzo_prod_h) : null;
+    return h == null || isNaN(h) ? null : h;
+  };
+  // Capacidad semanal por equipo (5 días hábiles, sin descontar ausencias futuras).
+  const capSemana = {};
+  for (const p of personas.filter(x => x.activo !== false)) {
+    const h = Number(p.fte || 1) * Number(p.jornada_h || 8) * Number(p.foco || 0.8) * 5;
+    capSemana[p.equipo] = (capSemana[p.equipo] || 0) + h;
+  }
+  const estado = {};
+  for (const e of cfg.ritmoEtapas) {
+    const ds = deals.filter(d => d.etapa_id === e.id);
+    estado[e.id] = { sitios: ds.length, kwp: ds.reduce((a, d) => a + (Number(d.kwp) || 0), 0) };
+  }
+  const filas = [];
+  const semanas = cfg.semanasPronostico || 10;
+  for (let w = 1; w <= semanas; w++) {
+    const fecha = sumaDiasHabiles(hoy, w * 5);
+    const colas = {};
+    for (const r of cfg.ritmoEtapas) if (r.modo === 'cola' && (estado[r.id] || {}).sitios > 0) (colas[r.equipo] ||= []).push(r);
+    const mueve = {}, demanda = {};
+    for (const r of cfg.ritmoEtapas) {
+      const st = estado[r.id]; if (!st || st.sitios <= 0) { mueve[r.id] = 0; continue; }
+      if (r.modo === 'proceso') { mueve[r.id] = st.sitios * Math.min(1, 5 / (r.dias || 1)); continue; }
+      const esf = esfuerzoDe(r.ticket);
+      if (esf == null) { mueve[r.id] = 0; continue; }
+      const horas = (capSemana[r.equipo] || 0) / (colas[r.equipo] || [r]).length;
+      mueve[r.id] = Math.min(st.sitios, horas / esf);
+      demanda[r.equipo] = (demanda[r.equipo] || 0) + st.sitios * esf;
+    }
+    const entra = {};
+    cfg.ritmoEtapas.forEach((r, i) => {
+      const st = estado[r.id]; if (!st) return;
+      const n = Math.min(st.sitios, mueve[r.id] || 0); if (n <= 0) return;
+      const kps = st.sitios ? st.kwp / st.sitios : 0;
+      const pasan = n * (r.conversion == null ? 1 : r.conversion);
+      st.sitios -= n; st.kwp -= n * kps;
+      const sig = cfg.ritmoEtapas[i + 1];
+      if (!sig) return;
+      entra[sig.id] = entra[sig.id] || { sitios: 0, kwp: 0 };
+      entra[sig.id].sitios += pasan; entra[sig.id].kwp += pasan * kps;
+    });
+    for (const [id, v] of Object.entries(entra)) { estado[id].sitios += v.sitios; estado[id].kwp += v.kwp; }
+    for (const r of cfg.ritmoEtapas) filas.push({ calculado_el: hoy, semana: w, semana_fecha: fecha,
+      etapa_id: r.id, equipo: null, sitios: Math.round(estado[r.id].sitios * 10) / 10, kwp: Math.round(estado[r.id].kwp), demanda_h: null, capacidad_h: null });
+    for (const [eq, d] of Object.entries(demanda)) filas.push({ calculado_el: hoy, semana: w, semana_fecha: fecha,
+      etapa_id: null, equipo: eq, sitios: null, kwp: null, demanda_h: Math.round(d), capacidad_h: Math.round(capSemana[eq] || 0) });
+  }
+  await upsert('pronosticos', filas, 'calculado_el,semana,etapa_id,equipo');
+  console.log(`Pronóstico guardado: ${filas.length} filas, ${semanas} semanas.`);
+}
+
+async function leerConfig() {
+  const { readFile } = await import('node:fs/promises');
+  try {
+    const txt = await readFile(new URL('../config.js', import.meta.url), 'utf8');
+    const win = {}; new Function('window', txt)(win);
+    return win.NIKO_CONFIG && win.NIKO_CONFIG.ritmoEtapas ? win.NIKO_CONFIG : null;
+  } catch (e) { return null; }
+}
+async function sbGet(tabla, cols) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${tabla}?select=${encodeURIComponent(cols)}`, {
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
+  });
+  if (!res.ok) throw new Error(`Supabase GET ${tabla} → ${res.status}`);
+  return res.json();
+}
+function sumaDiasHabiles(iso, n) {
+  const d = new Date(iso + 'T12:00:00Z');
+  let faltan = n;
+  while (faltan > 0) { d.setUTCDate(d.getUTCDate() + 1); const x = d.getUTCDay(); if (x !== 0 && x !== 6) faltan--; }
+  return d.toISOString().slice(0, 10);
 }
 
 function kwpDe(props) {
