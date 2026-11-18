@@ -546,7 +546,8 @@ const ESTADO = { raw: null, modelo: null, tab: 'flujo', unidad: 'sitios', horizo
 
 function cifra(clase, n, l, s, mk) { return `<div class="cifra ${clase}"><div class="l">${mk ? `<i class="mk ${mk}" aria-hidden="true"></i>` : ''}${l}</div><div class="n">${n}</div><div class="s">${s}</div></div>`; }
 function v(x) { return ESTADO.unidad === 'sitios' ? fmt.format(x.sitios) : fmt.format(x.kwp); }
-function u() { return ESTADO.unidad === 'sitios' ? 'sitios' : 'kWp'; }
+function u(n) { return ESTADO.unidad === 'sitios' ? (n === 1 ? 'sitio' : 'sitios') : 'kWp'; }
+function nSitios(n) { return `${fmt.format(n)} ${n === 1 ? 'sitio' : 'sitios'}`; }
 
 function vistaMeta(M) {
   const k = ESTADO.unidad;
@@ -558,7 +559,7 @@ function vistaMeta(M) {
     <div class="meta-cifras">
       ${cifra('goal', v(M.goal), 'Company Goal', `Lo prometido para ${MESES[m - 1]} ${a}`, 'goal')}
       ${cifra('forecast', v(M.forecast), 'Forecast', `Lo que la capacidad actual alcanza a entregar, de ${v(M.plan)} comprometidos`, 'fc')}
-      ${cifra('real', v(M.real), 'Real', 'Sitios que ya llegaron a instalación', 're')}
+      ${cifra('real', v(M.real), 'Real', `${ESTADO.unidad === 'sitios' ? 'Sitios' : 'kWp'} que ya llegaron a instalación`, 're')}
       ${cifra('delta ' + (delta < 0 ? 'neg' : 'pos'), (delta > 0 ? '+' : '') + fmt.format(delta), 'Delta', `Forecast contra goal, en ${u()}`)}
     </div>
     <div class="barra" role="img" aria-label="Real ${v(M.real)}, forecast ${v(M.forecast)} y goal ${v(M.goal)} ${u()}">
@@ -566,7 +567,7 @@ function vistaMeta(M) {
       <div class="re" style="width:${M.real[k] / tope * 100}%"></div>
       <div class="gl" style="left:${g / tope * 100}%"></div>
     </div>
-    <div class="barra-ejes"><span>0</span><span>${fmt.format(tope)} ${u()}</span></div>
+    <div class="barra-ejes"><span>0</span><span>${fmt.format(tope)} ${u(tope)}</span></div>
   </section>`;
 }
 
@@ -578,11 +579,11 @@ function vistaCadena(etapas) {
   const cadena = etapas.filter(e => !post.has(e.etapa_id));
   const fuera = etapas.filter(e => post.has(e.etapa_id));
   const columna = (e, maximo, alto) => `
-      <div class="etapa ${e.es_instalado ? 'inst' : ''}" title="${esc(e.etiqueta)}: ${e.sitios} sitios, ${fmt1.format(e.kwp)} kWp">
+      <div class="etapa ${e.es_instalado ? 'inst' : ''}" title="${esc(e.etiqueta)}: ${nSitios(e.sitios)}, ${fmt1.format(e.kwp)} kWp">
         <div class="e">${esc(e.etiqueta)}</div>
         ${e.es_instalado ? '<div class="tag">Instalación</div>' : ''}
         <div class="v">${k === 'sitios' ? e.sitios : fmt.format(e.kwp)}</div>
-        <div class="k">${k === 'sitios' ? fmt.format(e.kwp) + ' kWp' : e.sitios + ' sitios'}</div>
+        <div class="k">${k === 'sitios' ? fmt.format(e.kwp) + ' kWp' : nSitios(e.sitios)}</div>
         <div class="pista"><div class="col" style="height:${Math.round(e[k] / maximo * alto)}px"></div></div>
       </div>`;
   const maxCadena = Math.max(1, ...cadena.map(e => e[k]));
