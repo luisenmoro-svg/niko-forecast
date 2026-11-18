@@ -30,33 +30,33 @@ window.NIKO_CONFIG = {
   // capacidad se limita siempre por el ticket más lento de la etapa.
   ritmoEtapas: [
     { id: '1108691253', cod: '2.01', modo: 'proceso', dias: 9, conversion: 0.80, nota: 'avanza por lotes del engine' },
-    { id: '268239144', cod: '2.02', modo: 'cola', conversion: 0.65, tickets: [
+    { id: '268239144', cod: '2.02', modo: 'cola', conversion: 0.65, diasRef: 15, tickets: [
       { tipo: 'Planning levantamiento', equipo: 'Planning', orden: 'sec' },
       { tipo: 'Ejecución levantamiento', equipo: 'LiveOps', orden: 'sec' },
     ] },
-    { id: '1021672592', cod: '2.03', modo: 'cola', conversion: 0.65, tickets: [
+    { id: '1021672592', cod: '2.03', modo: 'cola', conversion: 0.65, diasRef: 3, tickets: [
       { tipo: 'Diseño y adicionales finales', equipo: 'Design', orden: 'sec', revision: true },
       { tipo: 'Costeo final Overhaul', equipo: 'Quoting', orden: 'sec' },
     ] },
     { id: '267654738', cod: '2.04', modo: 'proceso', dias: 5, conversion: 0.80, nota: 'espera aprobación del cliente' },
-    { id: '1418018399', cod: '2.09', modo: 'cola', conversion: 0.85, tickets: [
+    { id: '1418018399', cod: '2.09', modo: 'cola', conversion: 0.85, diasRef: 2, tickets: [
       { tipo: 'Revisión de IX', equipo: 'IX', orden: 'par' },
       { tipo: 'Disponibilidad', equipo: 'Procurement', orden: 'par' },
       { tipo: 'Creación de rutas de instalación', equipo: 'Product', orden: 'par' },
     ] },
-    { id: '1036112428', cod: '2.10', modo: 'cola', conversion: 0.90, tickets: [
+    { id: '1036112428', cod: '2.10', modo: 'cola', conversion: 0.90, diasRef: 5, tickets: [
       { tipo: 'Revisión de Ingenieria', equipo: 'Engineering', orden: 'sec' },
       { tipo: 'IX Aprobación diagrama unifilar', equipo: 'IX', orden: 'par' },
       { tipo: 'Costeo final Overhaul', equipo: 'Quoting', orden: 'par' },
     ] },
     { id: '1036112433', cod: '2.11', modo: 'proceso', dias: 3, conversion: 0.90, nota: 'adecuaciones, si aplican' },
-    { id: '1020227700', cod: '2.12', modo: 'cola', conversion: 1, tickets: [
+    { id: '1020227700', cod: '2.12', modo: 'cola', conversion: 1, diasRef: 2, tickets: [
       { tipo: 'VoBo Scoop RFP', equipo: 'Quoting', orden: 'par' },
       { tipo: 'Procurement Quote', equipo: 'Procurement', orden: 'par' },
       { tipo: 'IX Quote', equipo: 'IX', orden: 'par' },
       { tipo: 'VoBo costo cotizado y OS', equipo: 'Quoting', orden: 'sec' },
     ] },
-    { id: '267654734', cod: '2.13', modo: 'cola', conversion: 1, tickets: [
+    { id: '267654734', cod: '2.13', modo: 'cola', conversion: 1, diasRef: 3, tickets: [
       { tipo: 'Cierre de planeación', equipo: 'Planning', orden: 'sec' },
     ] },
     { id: '1036112429', cod: '2.14', modo: 'proceso', dias: 2, conversion: 1, nota: 'espera de cuadrilla' },

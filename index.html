@@ -1017,8 +1017,8 @@ function pintarDetalle() {
     const n1 = x => fmt1.format(x);
     const cuadra = Math.abs((t.inicio + t.llegaron - t.salieron + t.nuevos) - t.fin) < 0.05;
     const paso = x => `<tr${x === p.cuello ? ' class="marca"' : ''}><td class="izq">${esc(x.tipo)}</td><td class="izq">${esc(x.equipo)}</td>`
-      + `<td>${n1(x.horas)} h</td><td>${n1(x.esfuerzo)} h</td><td>${n1(x.caben)}</td>`
-      + `<td class="izq"><span class="supuesto">${esc(x.fuente)}</span>${x.quienes && x.quienes.ids.length ? ` · ${x.quienes.ids.length} ${x.quienes.ids.length === 1 ? 'persona' : 'personas'} <span class="supuesto">(${esc(x.quienes.fuente)})</span>` : x.quienes ? ` <span class="supuesto">(${esc(x.quienes.fuente)})</span>` : ''}</td></tr>`;
+      + `<td>${x.sinCapacidad ? '—' : n1(x.horas) + ' h'}</td><td>${n1(x.esfuerzo)} h</td><td>${n1(x.caben)}</td>`
+      + `<td class="izq">${x.sinCapacidad ? `<span class="supuesto">sin capacidad modelada · avanza por SLA de ${n1(x.dias)} d</span>` : `<span class="supuesto">${esc(x.fuente)}</span>`}${x.quienes && x.quienes.ids.length ? ` · ${x.quienes.ids.length} ${x.quienes.ids.length === 1 ? 'persona' : 'personas'} <span class="supuesto">(${esc(x.quienes.fuente)})</span>` : x.quienes ? ` <span class="supuesto">(${esc(x.quienes.fuente)})</span>` : ''}</td></tr>`;
     const motivo = p.modo === 'cola'
       ? `La etapa va al ritmo de su paso más lento: <b>${esc((p.cuello || {}).tipo || '—')}</b>, que deja pasar <b>${n1(p.caben)} sitios</b>.${p.topado ? ` Solo había ${n1(t.inicio + t.llegaron)}, así que salen todos.` : ''}
          <table class="pasos"><thead><tr><th class="izq">Paso</th><th class="izq">Equipo</th><th>Horas</th><th>c/u</th><th>Caben</th><th class="izq">De dónde</th></tr></thead>
@@ -1432,7 +1432,7 @@ function vistaCapacidad(M, raw) {
       return seccion('cuellos', 'Próximos cuellos de botella', 'cuellos',
         resumen ? `${resumen} de ${P.cuellos.length} equipos se saturan` : 'ningún equipo se satura',
         `Pronóstico preliminar · demanda de las colas contra la capacidad del equipo, ${P.semanas.length} semanas`,
-        `${P.sinQuien && P.sinQuien.length ? `<p class="aviso error">${P.sinQuien.length} pasos no tienen a nadie que pueda tomarlos, así que su etapa queda detenida en el pronóstico: ${P.sinQuien.map(esc).join(', ')}.</p>` : ''}
+        `${P.sinQuien && P.sinQuien.length ? `<p class="aviso">${P.sinQuien.length} pasos no tienen a nadie modelado que pueda tomarlos, así que avanzan <b>según su SLA</b> y están marcados «sin capacidad modelada»: ${P.sinQuien.map(esc).join(' · ')}. Esos pasos <b>no pueden mostrar saturación</b>: para que aparezcan, sus equipos tienen que estar en la tabla de personas.</p>` : ''}
         ${P.porSla && P.porSla.length ? `<p class="aviso">${P.porSla.length} pasos usan el SLA como duración porque no hay esfuerzo ni cierres suficientes: ${P.porSla.map(esc).join(', ')}. <b>Esas etapas no pueden mostrar saturación</b>, porque el SLA mide tiempo prometido y no horas de trabajo.</p>` : ''}
         ${P.modoEntrada === 'sin-historia' ? `<p class="aviso error">No hay dos fotos separadas por una semana, así que <b>no se puede medir el ritmo real de entrada</b>. El pronóstico usa el ritmo que haría falta para la meta (${fmt1.format(P.eMeta.sitios)} sitios por semana). No es el ritmo de hoy.</p>` : ''}
         <p class="fuente">${P.modoEntrada === 'meta'

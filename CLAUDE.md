@@ -205,8 +205,13 @@ Aplican a toda vista nueva, no solo a las existentes.
   `orden: 'sec'` o `'par'` según el disparador de su workflow. La capacidad se limita por
   el paso más lento; el orden solo cambia la promesa (secuencial suma SLA, paralelo toma
   el mayor).
-- **Nada se detiene en silencio:** sin esfuerzo, sin SLA o sin nadie que pueda tomarlo,
-  la etapa se para y el aviso dice cuál y por qué.
+- **Un paso sin nadie modelado NO detiene la cadena**: avanza por su SLA (o por
+  `diasRef`, los días del Reverse Eng Model) y queda marcado «sin capacidad modelada»,
+  con el equipo que debería tomarlo. Si se detuviera, las etapas de más adelante nunca
+  verían llegar sus olas y las alertas se quedarían ciegas. Esos pasos **no pueden
+  mostrar saturación** hasta que sus equipos estén en `personas`.
+- **Nada se detiene en silencio:** sin esfuerzo y sin SLA, la etapa se para y el aviso
+  dice cuál y por qué.
 - El simulador cambia solo `ESTADO.sim`; nunca toca los datos.
 
 ## Reglas de trabajo

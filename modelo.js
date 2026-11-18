@@ -95,11 +95,20 @@
               pasos.push({ tipo: t.tipo, equipo: t.equipo, sinEsfuerzo: true, caben: 0 }); continue;
             }
             const horas = e.horasPara(t.tipo, t.equipo, r.id, w, esRev);
-            // Cero horas = nadie puede tomarlo o el equipo no existe. Se marca, no se calla.
-            if (!(horas.h > 0)) sinQuien.add(r.cod + ' · ' + t.tipo + (esRev ? ' (revisión)' : ''));
+            // Nadie modelado para este paso: no se detiene la cadena, porque entonces las
+            // etapas de más adelante nunca verían llegar sus olas. Avanza por su SLA (o por
+            // los días del Reverse Eng Model) y se marca «sin capacidad modelada».
+            if (!(horas.h > 0)) {
+              sinQuien.add(r.cod + ' · ' + t.tipo + (esRev ? ' (revisión)' : '') + ' → ' + t.equipo);
+              const d = e.sla(t.tipo) || r.diasRef || 5;
+              pasos.push({ tipo: t.tipo + (esRev ? ' (revisión)' : ''), equipo: t.equipo,
+                           esfuerzo: esf.h, fuente: esf.fuente, horas: 0, quienes: horas.quienes,
+                           sinCapacidad: true, dias: d,
+                           caben: st.sitios * Math.min(1, 5 / d) });
+              continue;
+            }
             pasos.push({ tipo: t.tipo + (esRev ? ' (revisión)' : ''), equipo: t.equipo,
                          esfuerzo: esf.h, fuente: esf.fuente, horas: horas.h, quienes: horas.quienes,
-                         sinQuien: !(horas.h > 0),
                          caben: esf.h > 0 ? horas.h / esf.h : 0 });
             demandaEquipo[t.equipo] = demandaEquipo[t.equipo] || [];
             demandaEquipo[t.equipo][w - 1] = (demandaEquipo[t.equipo][w - 1] || 0) + st.sitios * esf.h;
