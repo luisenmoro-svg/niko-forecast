@@ -300,9 +300,11 @@ function construirModelo(raw, opciones) {
   const sinPersona = abiertos.filter(t => !t.persona);
 
   // --- Etapas y deals
-  const etapas = raw.etapas.filter(e => !segmento || e.pipeline === segmento).sort((a, b) => a.orden - b.orden);
+  // Las etapas marcadas es_inactivo (Inviable, Dormant, Churned) no cuentan en ningún lado.
   const etapaPorId = Object.fromEntries(raw.etapas.map(e => [e.etapa_id, e]));
-  const deals = raw.deals.filter(d => !segmento || d.segmento === segmento);
+  const inactiva = id => !!(etapaPorId[id] && etapaPorId[id].es_inactivo);
+  const etapas = raw.etapas.filter(e => (!segmento || e.pipeline === segmento) && !e.es_inactivo).sort((a, b) => a.orden - b.orden);
+  const deals = raw.deals.filter(d => (!segmento || d.segmento === segmento) && !inactiva(d.etapa_id));
   const esInstalado = d => !!(etapaPorId[d.etapa_id] && etapaPorId[d.etapa_id].es_instalado);
 
   const porEtapa = etapas.map(e => {
@@ -311,7 +313,7 @@ function construirModelo(raw, opciones) {
   });
 
   // Evolución semanal: T0, 1S, 2S…
-  const series = raw.series.filter(r => !segmento || r.segmento === segmento);
+  const series = raw.series.filter(r => (!segmento || r.segmento === segmento) && !inactiva(r.etapa_id));
   const semanas = raw.semanas.map((fecha, i) => {
     const filas = series.filter(r => r.snapshot_date === fecha);
     const pe = {};
