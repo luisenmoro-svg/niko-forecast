@@ -53,8 +53,12 @@ Escritas por el script: `snapshots`, `deals_snapshot`, `tickets_snapshot`, `etap
     `1398903636` Dormant, `1431169623` Churn.
   - Un ticket sale de la capacidad solo si **todos** sus deals están en etapa inactiva:
     uno compartido con un deal vivo sigue contando.
-- `config.js > etapasPostInstalacion` lista las etapas que se grafican aparte, en la zona
-  punteada «post-instalación», para que su histórico no aplaste la cadena.
+- `config.js > gruposEtapas` parte la cadena en filas por sección del pipeline, cada una
+  con su propia escala; una etapa que no esté en ningún grupo cae en «Otras» y nunca
+  desaparece. `config.js > etapasPostInstalacion` lista las que van en la zona punteada
+  «post-instalación», para que su histórico no aplaste la cadena.
+- La tabla «Qué cambió desde T0» muestra **sitios y kWp lado a lado** y no depende del
+  botón Sitios/kWp; ese botón solo afecta las cifras del mes y la cadena.
 - **La cadena se deja en escala lineal a propósito.** 2.01 Análisis preliminar domina
   porque el embudo es así de desigual, y cada tarjeta lleva su número. No cambiar a
   escala raíz cuadrada ni similar: haría ver las etapas más parejas de lo que son.

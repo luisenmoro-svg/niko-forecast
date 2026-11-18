@@ -81,17 +81,23 @@ button.primario { background: var(--hs-ink); color: #fff; border-color: var(--hs
 .cadena-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 @media (min-width: 768px) { .cadena-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 @media (min-width: 1280px) { .cadena-grid { grid-template-columns: repeat(10, minmax(0, 1fr)); } }
-.etapa { display: flex; flex-direction: column; min-height: 190px; padding: 8px 10px 10px; background: var(--hs-card); border: 1px solid var(--hs-border); border-top: 3px solid transparent; border-radius: 8px; }
+.etapa { display: flex; flex-direction: column; min-height: 104px; padding: 7px 9px 8px; background: var(--hs-card); border: 1px solid var(--hs-border); border-top: 3px solid transparent; border-radius: 8px; }
 .etapa.inst { border-top-color: var(--hs-ink); }
 .etapa .e { font-size: 13px; font-weight: 600; }
 .etapa .tag { font-size: 10px; font-weight: 600; color: var(--hs-muted); }
-.etapa .v { font-weight: 600; font-size: 20px; margin-top: 4px; }
+.etapa .v { font-weight: 600; font-size: 18px; margin-top: 2px; line-height: 1.15; }
 .etapa .k { color: var(--hs-muted); font-size: 12px; }
-.etapa .pista { flex: 1; display: flex; align-items: flex-end; margin-top: 8px; }
+.etapa .pista { flex: 1; display: flex; align-items: flex-end; margin-top: 6px; min-height: 28px; }
 .etapa .col { width: 100%; background: var(--hs-gull); border-radius: 4px 4px 0 0; min-height: 2px; }
 .fuera-flujo { margin-top: 12px; padding: 10px 10px 2px; border: 1px dashed var(--hs-border); border-radius: 8px; }
 .fuera-flujo .nota { margin: 0 0 8px; }
-.fuera-flujo .etapa { min-height: 120px; }
+.fuera-flujo .etapa { min-height: 88px; }
+.fuera-flujo .pista { min-height: 20px; }
+table.t0 th.par, table.t0 td.par { border-left: 1px solid var(--hs-border); }
+table.t0 th.sub { font-size: 11px; font-weight: 500; color: var(--hs-muted); }
+.grupo { margin-top: 14px; }
+.grupo:first-of-type { margin-top: 8px; }
+.grupo-t { font-size: 13px; font-weight: 600; color: var(--hs-muted); margin-bottom: 6px; }
 details.aviso.fuera > summary { cursor: pointer; font-weight: 600; }
 details.aviso.fuera .tabla { margin-top: 10px; }
 .etapa.inst .col { background: var(--hs-ink); }
@@ -578,22 +584,40 @@ function vistaCadena(etapas) {
   const post = new Set(CFG.etapasPostInstalacion || []);
   const cadena = etapas.filter(e => !post.has(e.etapa_id));
   const fuera = etapas.filter(e => post.has(e.etapa_id));
+
+  // Una fila por sección del pipeline, cada una con su propia escala.
+  const grupos = (CFG.gruposEtapas || []).map(g => ({
+    titulo: g.titulo,
+    etapas: cadena.filter(e => (g.etapas || []).includes(e.etapa_id)),
+  }));
+  const asignadas = new Set(grupos.flatMap(g => g.etapas.map(e => e.etapa_id)));
+  const sueltas = cadena.filter(e => !asignadas.has(e.etapa_id));
+  // Una etapa sin grupo nunca se esconde: cae en «Otras».
+  if (sueltas.length) grupos.push({ titulo: 'Otras', etapas: sueltas });
+  const filas = grupos.filter(g => g.etapas.length);
+
   const columna = (e, maximo, alto) => `
       <div class="etapa ${e.es_instalado ? 'inst' : ''}" title="${esc(e.etiqueta)}: ${nSitios(e.sitios)}, ${fmt1.format(e.kwp)} kWp">
         <div class="e">${esc(e.etiqueta)}</div>
-        ${e.es_instalado ? '<div class="tag">Instalación</div>' : ''}
         <div class="v">${k === 'sitios' ? e.sitios : fmt.format(e.kwp)}</div>
         <div class="k">${k === 'sitios' ? fmt.format(e.kwp) + ' kWp' : nSitios(e.sitios)}</div>
         <div class="pista"><div class="col" style="height:${Math.round(e[k] / maximo * alto)}px"></div></div>
       </div>`;
-  const maxCadena = Math.max(1, ...cadena.map(e => e[k]));
+  const fila = (g, alto) => {
+    const max = Math.max(1, ...g.etapas.map(e => e[k]));
+    return `<div class="grupo">
+      <div class="grupo-t">${esc(g.titulo)}</div>
+      <div class="cadena-grid">${g.etapas.map(e => columna(e, max, alto)).join('')}</div>
+    </div>`;
+  };
   const maxFuera = Math.max(1, ...fuera.map(e => e[k]));
   return `<div class="cadena"><h2>Dónde están hoy los sitios</h2>
-    <p class="nota">Sitios y kWp en cada etapa del deal, de la foto más reciente. La columna con borde negro es la entrada a instalación.</p>
-    <div class="cadena-grid">${cadena.map(e => columna(e, maxCadena, 90)).join('')}</div>
+    <p class="nota">Sitios y kWp en cada etapa del deal, de la foto más reciente. Cada sección tiene su propia escala, así que las alturas solo se comparan dentro de una fila.</p>
+    ${filas.map(g => fila(g, 28)).join('')}
     ${fuera.length ? `<div class="fuera-flujo">
-      <p class="nota">Post-instalación: ya instalados, con su propia escala. Cuentan en Real, no en la cadena.</p>
-      <div class="cadena-grid">${fuera.map(e => columna(e, maxFuera, 40)).join('')}</div>
+      <div class="grupo-t">Post-instalación</div>
+      <p class="nota">Ya instalados, con su propia escala. Cuentan en Real, no en la cadena.</p>
+      <div class="cadena-grid">${fuera.map(e => columna(e, maxFuera, 20)).join('')}</div>
     </div>` : ''}
   </div>`;
 }
@@ -624,13 +648,19 @@ function vistaFlujo(M) {
     </div>
 
     <h2>Qué cambió desde T0</h2>
-    <p class="nota">Cada columna es una foto semanal. El número pequeño es la diferencia contra T0. Elige otra fecha de T0 arriba para mover la línea base.</p>
-    <div class="tabla"><table>
-      <thead><tr><th>Etapa</th>${sem.map(s => `<th title="${s.fecha}">${s.etiqueta}<br><small>${s.fecha.slice(5)}</small></th>`).join('')}</tr></thead>
+    <p class="nota">Cada columna es una foto semanal, con sitios y kWp lado a lado. El número pequeño es la diferencia contra T0. Elige otra fecha de T0 arriba para mover la línea base.</p>
+    <div class="tabla"><table class="t0">
+      <thead>
+        <tr><th rowspan="2">Etapa</th>${sem.map(s => `<th colspan="2" class="par" title="${s.fecha}">${s.etiqueta} <small>${s.fecha.slice(5)}</small></th>`).join('')}</tr>
+        <tr>${sem.map(() => '<th class="sub par">Sitios</th><th class="sub">kWp</th>').join('')}</tr>
+      </thead>
       <tbody>${etapas.map(e => `<tr><td>${esc(e.etiqueta)}</td>${sem.map((s, i) => {
         const x = s.porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 }, x0 = sem[0].porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 };
-        return `<td>${fmt.format(x[k])}${i ? delta(x[k], x0[k]) : ''}</td>`; }).join('')}</tr>`).join('')}</tbody>
-      <tfoot><tr><td>Total</td>${sem.map((s, i) => `<td>${fmt.format(s[k])}${i ? delta(s[k], sem[0][k]) : ''}</td>`).join('')}</tr></tfoot>
+        return `<td class="par">${fmt.format(x.sitios)}${i ? delta(x.sitios, x0.sitios) : ''}</td><td>${fmt.format(x.kwp)}${i ? delta(x.kwp, x0.kwp) : ''}</td>`;
+      }).join('')}</tr>`).join('')}</tbody>
+      <tfoot><tr><td>Total</td>${sem.map((s, i) => `
+        <td class="par">${fmt.format(s.sitios)}${i ? delta(s.sitios, sem[0].sitios) : ''}</td>
+        <td>${fmt.format(s.kwp)}${i ? delta(s.kwp, sem[0].kwp) : ''}</td>`).join('')}</tr></tfoot>
     </table></div>
 
     <h2>Volumen y SLA por tipo de ticket</h2>
