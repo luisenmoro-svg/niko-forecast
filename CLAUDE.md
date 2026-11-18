@@ -216,6 +216,13 @@ Aplican a toda vista nueva, no solo a las existentes.
   sitios llegan a una etapa cuyo paso más lento no alcanza a absorberlos. Cada alerta es
   una frase que se entiende sola, ordenadas por kWp que se quedan fuera, y dice
   explícitamente cuando una sola persona sostiene el paso. Sale del mismo `pronostico()`.
+- **El desfase contra el mes comprometido es una aproximación**: supone que dentro de una
+  etapa los sitios avanzan en orden de `fecha_instalacion` (los más urgentes primero) y
+  que salen al ritmo que la etapa sostiene hoy. No considera lo que tarden las etapas
+  siguientes. Está marcado así en su ⓘ.
+- **La comparación contra T0 está pendiente** hasta que la tabla `pronosticos` acumule
+  historia: hace falta un pronóstico guardado de hace semanas para contrastar cuánto
+  cambió lo esperado. El workflow ya la escribe a diario.
 - El simulador cambia solo `ESTADO.sim`; nunca toca los datos.
 
 ## Reglas de trabajo

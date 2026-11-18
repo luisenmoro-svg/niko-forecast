@@ -891,7 +891,27 @@ function olas(M, P) {
     const semProm = promTraza && promTraza.porque.fraccion > 0 ? 1 / promTraza.porque.fraccion : 1;
     const retrasoDias = Number.isFinite(semCap) ? Math.max(0, Math.round((semCap - semProm) * 5)) : null;
 
-    // Desfase: sitios del mes comprometido que no alcanzan a salir.
+    // Desfase contra el mes comprometido. Aproximación: dentro de la etapa los sitios
+    // avanzan por orden de fecha_instalacion (los más urgentes primero), así que el que
+    // está en la posición k sale en la semana ceil(k / lo que sale por semana).
+    const enEtapa = [...((M.porEtapa.find(e => e.etapa_id === r.id) || {}).ds || [])]
+      .filter(d => d.fecha_instalacion)
+      .sort((a, b) => String(a.fecha_instalacion).localeCompare(String(b.fecha_instalacion)));
+    const fuera = [];
+    if (capacidadSemana > 0) {
+      enEtapa.forEach((d, k) => {
+        const semanaSalida = Math.ceil((k + 1) / capacidadSemana);
+        const salida = siguientesHabiles(HOY, semanaSalida * 5).pop();
+        const f = toDay(d.fecha_instalacion);
+        if (f == null) return;
+        // Fin del mes comprometido de ese sitio.
+        const dd = new Date(f);
+        const finMes = Date.UTC(dd.getUTCFullYear(), dd.getUTCMonth() + 1, 1) - DAY;
+        if (salida > finMes) fuera.push({ ...d, salidaEstimada: isoDay(salida) });
+      });
+    } else {
+      fuera.push(...enEtapa);
+    }
     const kwpPorSitio = t.fin > 0 ? t.kwpFin / t.fin : 0;
     const seQuedan = Math.max(0, mejor.llegaron - capacidadSemana);
     out.push({
@@ -903,10 +923,11 @@ function olas(M, P) {
       quienes, unaPersona, quienFuente: (cuello.quienes || {}).fuente,
       sinCapacidad: !!cuello.sinCapacidad,
       retrasoDias, seQuedan, kwp: seQuedan * kwpPorSitio,
+      desfase: fuera, desfaseKwp: sum(fuera, d => d.kwp || 0),
       traza: t,
     });
   });
-  return out.sort((a, b) => b.kwp - a.kwp);
+  return out.sort((a, b) => (b.desfaseKwp || b.kwp) - (a.desfaseKwp || a.kwp));
 }
 
 function fraseOla(o) {
@@ -919,7 +940,10 @@ function fraseOla(o) {
     + (o.origenCod ? `, que hoy vienen de ${esc(o.origenCod)}` : '')
     + `. ${quien}`
     + (o.retrasoDias ? `, así que el paso a ${esc(o.destinoCod)} se retrasa <b>${o.retrasoDias} ${o.retrasoDias === 1 ? 'día hábil' : 'días hábiles'}</b> contra la promesa` : '')
-    + `. Se quedan fuera ${fmt1.format(o.seQuedan)} sitios y ${fmt.format(Math.round(o.kwp))} kWp.`;
+    + `. Se quedan fuera ${fmt1.format(o.seQuedan)} sitios y ${fmt.format(Math.round(o.kwp))} kWp`
+    + (o.desfase && o.desfase.length
+        ? `, y <b>${o.desfase.length} ${o.desfase.length === 1 ? 'sitio se sale' : 'sitios se salen'} de su mes de instalación</b> (${fmt.format(Math.round(o.desfaseKwp))} kWp).`
+        : ', y ninguno se sale de su mes de instalación.');
 }
 
 // ====================== Vista ======================
@@ -963,6 +987,7 @@ const DEF = {
   diasRestantes: 'Días hábiles entre hoy y la fecha de instalación del sitio.',
   porQue: 'El ticket que marca el cuello de botella y cuánto tiempo pide entre fila y SLA.',
   ticketsInactivos: 'Tickets abiertos cuyos deals están todos en una etapa inactiva (Inviable, Dormant, Churned). No consumen capacidad: conviene cerrarlos.',
+  desfase: 'Sitios cuya salida de esta etapa cae después del fin del mes de su fecha de instalación comprometida. Es una APROXIMACIÓN: supone que dentro de la etapa los sitios avanzan en orden de fecha de instalación, los más urgentes primero, y que salen al ritmo que la etapa sostiene hoy. No considera lo que tarden las etapas siguientes.',
   prepararse: 'Dónde se va a juntar trabajo antes de que pase. Una ola es un grupo de sitios que hoy están en una etapa y que, al avanzar, caen sobre un paso que no da abasto. Se ordenan por los kWp que se quedan fuera. Es un pronóstico preliminar.',
   cuellos: 'Semana a semana, las horas que pide la fila de cada equipo contra las horas que tiene. Un sitio sale de una etapa cuando se cierra su ticket, así que la velocidad de la cadena es la capacidad de quien cierra. Es un pronóstico preliminar.',
   sinOwner: 'Tickets abiertos cuyo owner de HubSpot no está en la tabla personas, así que su trabajo no se le suma a nadie.',
@@ -1513,6 +1538,7 @@ function vistaCapacidad(M, raw) {
               ? `nadie en la tabla de personas. Debería tomarlo ${esc(o.equipo)}, y mientras tanto el pronóstico lo hace avanzar por su SLA.`
               : `${o.quienesNombres.map(esc).join(', ')} <span class="supuesto">(${esc(o.quienFuente)})</span>. El paso que atora es «${esc(o.paso)}».`}</p>
           <p class="nota"><b>Sitios de la ola:</b> hoy hay ${fmt.format(o.sitiosOrigen)} en ${esc(o.origenCod || '—')} que vienen en camino.</p>
+          ${o.desfase && o.desfase.length ? `<p class="nota"><b>Se salen de su mes:</b> ${num(o.desfase.length, `Sitios que se salen de su mes · ${o.cod}`, o.desfase.map(d => ({ ...d, etapaEtiqueta: o.etiqueta })), 'sitios')} sitios, ${fmt.format(Math.round(o.desfaseKwp))} kWp. ${info('desfase')}</p>` : ''}
         </details>`).join('') : '<p class="nota">Con el ritmo de hoy, ninguna etapa recibe más sitios de los que alcanza a sacar.</p>')
     ;})()}
 
