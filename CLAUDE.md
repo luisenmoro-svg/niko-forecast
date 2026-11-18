@@ -128,10 +128,17 @@ Aplican a toda vista nueva, no solo a las existentes.
 - **La demanda es del pipeline del ticket** (`tickets_snapshot.equipo`), no del equipo de
   la persona. Los equipos del dashboard son los pipelines de ticket.
 - **La oferta se reparte** con los pesos de cada persona: `persona_equipos` manda; si no
-  hay filas y `personas.equipo` trae «/», se reparte según la mezcla de pipelines de sus
-  tickets creados en los últimos 28 días y queda marcado como **supuesto**; en cualquier
-  otro caso, todo va a `personas.equipo`.
+  hay filas y `personas.equipo` trae «/», se reparte según la mezcla de pipelines de lo que
+  la persona **trabajó** —sus abiertos de hoy más los que cerró en 28 días, para que cuente
+  la revisión que le llega por reasignación en Under review— y queda marcado como
+  **supuesto**; en cualquier otro caso, todo va a `personas.equipo`.
 - Por eso «Design / Engineering» ya no aparece como equipo propio.
+- **El Delta se descompone en dos partes que suman exactamente el delta**: brecha de plan
+  (`plan − goal`, sitios que ni siquiera tienen fecha en el mes) y brecha de capacidad
+  (`forecast − plan`, comprometidos que no entran por fila y SLA). Su panel lista los que
+  no entran con su motivo y avisa en rojo si las partes no suman.
+- `persona_equipos` ya existe en Supabase con su política RLS (18 nov 2026). El reparto de
+  Juneth sigue pendiente de que Paola lo defina: mientras tanto cae en el caso automático.
 
 ## Reglas de trabajo
 
