@@ -94,6 +94,11 @@ button.primario { background: var(--hs-ink); color: #fff; border-color: var(--hs
 .fuera-flujo .etapa { min-height: 0; }
 table.t0 th.par, table.t0 td.par { border-left: 1px solid var(--hs-border); }
 table.t0 th.sub { font-size: 11px; font-weight: 500; color: var(--hs-muted); }
+table.t0 td.esc { font-size: 10px; color: var(--hs-muted); text-transform: uppercase; letter-spacing: .3px; }
+table.t0 tr.esc-goal td { background: rgba(230,255,0,.07); }
+table.t0 tr.esc-real td:not(.esc) { font-weight: 600; }
+.brecha { display: block; font-size: 10px; color: var(--hs-muted); }
+.brecha.neg { color: var(--hs-red); }
 table.t0 .fut { border-top: 1px dashed var(--hs-border); border-bottom: 1px dashed var(--hs-border); color: var(--hs-muted); background: repeating-linear-gradient(45deg, transparent 0 6px, rgba(150,163,181,.06) 6px 12px); }
 table.t0 th.fut { font-style: italic; }
 .vspron { display: block; font-size: 10px; color: var(--hs-muted); font-style: italic; }
@@ -849,8 +854,16 @@ function pronostico(M, sim, opciones) {
     if (e2.porSla) porSla.push(`${r.cod} · ${t.tipo}`);
   }
 
-  return { ...R, promesa: Prom, capSemana, entrada: nuevos, modoEntrada, eReal, eMeta, hayHistoria,
-           porSla, esfuerzoDe: esfuerzo, quienesPueden: puede };
+  // El plan de ensueño: hacia atrás desde la meta mensual.
+  const metaMes = (S.meta != null ? S.meta : M.metricas.goal.sitios) || 0;
+  const kwpPorSitio = M.metricas.goal.sitios ? M.metricas.goal.kwp / M.metricas.goal.sitios : 15;
+  const Meta = NIKO_MODELO.calcularMeta({
+    ritmos, metaSemana: metaMes / 4.33, kwpPorSitio,
+    semanas: CFG.semanasPronostico || 10, sla: slaDe, esfuerzo,
+  });
+
+  return { ...R, promesa: Prom, meta: Meta, metaMes, capSemana, entrada: nuevos, modoEntrada,
+           eReal, eMeta, hayHistoria, porSla, esfuerzoDe: esfuerzo, quienesPueden: puede };
 }
 
 // ====================== Olas: dónde hay que prepararse ======================
@@ -988,6 +1001,7 @@ const DEF = {
   porQue: 'El ticket que marca el cuello de botella y cuánto tiempo pide entre fila y SLA.',
   ticketsInactivos: 'Tickets abiertos cuyos deals están todos en una etapa inactiva (Inviable, Dormant, Churned). No consumen capacidad: conviene cerrarlos.',
   desfase: 'Sitios cuya salida de esta etapa cae después del fin del mes de su fecha de instalación comprometida. Es una APROXIMACIÓN: supone que dentro de la etapa los sitios avanzan en orden de fecha de instalación, los más urgentes primero, y que salen al ritmo que la etapa sostiene hoy. No considera lo que tarden las etapas siguientes.',
+  pideMeta: 'Horas por semana que exigiría cumplir la meta mensual, calculadas hacia atrás: desde las instalaciones que pide la meta se sube por la cadena dividiendo entre cada tasa de conversión, y cada sitio que pasa por una etapa consume el esfuerzo de sus tickets. Se compara contra las horas que cada equipo tiene hoy.',
   prepararse: 'Dónde se va a juntar trabajo antes de que pase. Una ola es un grupo de sitios que hoy están en una etapa y que, al avanzar, caen sobre un paso que no da abasto. Se ordenan por los kWp que se quedan fuera. Es un pronóstico preliminar.',
   cuellos: 'Semana a semana, las horas que pide la fila de cada equipo contra las horas que tiene. Un sitio sale de una etapa cuando se cierra su ticket, así que la velocidad de la cadena es la capacidad de quien cierra. Es un pronóstico preliminar.',
   sinOwner: 'Tickets abiertos cuyo owner de HubSpot no está en la tabla personas, así que su trabajo no se le suma a nadie.',
@@ -1065,6 +1079,11 @@ function numInst(texto, titulo, inst, etiqueta) {
   DRILL.set(id, { titulo, tipo: 'instalados', inst, etapaEtiqueta: etiqueta, mostrado: texto, registros: [] });
   return `<button class="num" type="button" data-d="${id}">${texto}</button>`;
 }
+function numMeta(texto, titulo, n, P) {
+  const id = 'd' + (++drillSeq);
+  DRILL.set(id, { titulo, tipo: 'meta', n, P, mostrado: texto, registros: [] });
+  return `<button class="num" type="button" data-d="${id}">${texto}</button>`;
+}
 const PANEL = { id: null, orden: null, asc: true, origen: null };
 function abrirDetalle(id, boton) {
   const d = DRILL.get(id);
@@ -1106,6 +1125,20 @@ function pintarDetalle() {
     const cuadra = !Number.isFinite(mostrado) || d.registros.length === mostrado;
     document.getElementById('pd-n').innerHTML = `${fmt.format(d.registros.length)} ${d.registros.length === 1 ? 'registro' : 'registros'}`
       + (cuadra ? '' : `<span class="pd-mal">No cuadra: la cifra dice ${esc(d.mostrado)} y la lista tiene ${fmt.format(d.registros.length)}</span>`);
+  }
+  if (d.tipo === 'meta') {
+    const n = d.n, P = d.P;
+    document.getElementById('pd-n').textContent = 'De dónde sale lo que pide la meta, calculado hacia atrás';
+    document.getElementById('pd-c').innerHTML = `<div class="tabla"><table>
+      <tbody>
+        <tr><td class="izq">Meta del mes</td><td>${fmt.format(P.metaMes)} sitios</td><td class="izq">≈ ${fmt1.format(P.metaMes / 4.33)} instalaciones por semana</td></tr>
+        <tr><td class="izq">Deben entrar a ${esc(n.cod)}</td><td>${fmt1.format(n.entranSemana)}</td><td class="izq">por semana, despejando las conversiones de las etapas siguientes</td></tr>
+        <tr><td class="izq">Tarda</td><td>${fmt1.format(n.dias)} d</td><td class="izq">días hábiles según el SLA de sus tickets</td></tr>
+        <tr class="marca"><td class="izq"><b>Sitios parados a la vez</b></td><td><b>${fmt1.format(n.sitios)}</b></td><td class="izq">lo que entra por semana × las semanas que tarda</td></tr>
+        <tr><td class="izq">Sobreviven</td><td>${pct(n.conversion)}</td><td class="izq">tasa de conversión del Reverse Eng Model</td></tr>
+      </tbody></table></div>
+      <p class="nota">Para toda la cadena, la meta pediría que entraran <b>${fmt1.format(P.meta.entradaSemana)} sitios por semana</b> a la primera etapa. Es el plan de ensueño: supone que cada ticket se cumple en su SLA.</p>`;
+    return;
   }
   if (d.tipo === 'desglose') {
     const t = d.traza, p = t.porque || {};
@@ -1422,21 +1455,43 @@ function vistaFlujo(M, raw) {
 
     ${seccion('t0', 'Qué cambió desde T0', 'desdeT0',
       `${sem.length} fotos · total ${fmt.format(sem[sem.length - 1]?.sitios || 0)} sitios${sem.length > 1 ? ` (${(sem[sem.length - 1].sitios - sem[0].sitios) >= 0 ? '+' : '−'}${fmt.format(Math.abs(sem[sem.length - 1].sitios - sem[0].sitios))} desde T0)` : ''}`,
-      fH, `<div class="tabla"><table class="t0">
+      fH, `${(() => {
+        const frases = [];
+        for (const e of etapas) {
+          let peor = null;
+          P.semanas.forEach((f, i) => {
+            const fc = (f.porEtapa[e.etapa_id] || {}).sitios || 0;
+            const g = (P.meta.semanas[i].porEtapa[e.etapa_id] || {}).sitios || 0;
+            const d = g - fc;
+            if (d > 0 && (!peor || d > peor.d)) peor = { d, g, fc, sem: i + 1 };
+          });
+          if (peor && peor.d >= 5) frases.push(`En <b>${esc(e.etiqueta)}</b>, la meta pide ${fmt1.format(peor.g)} sitios en ${peor.sem}S y la capacidad llega a ${fmt1.format(peor.fc)}: <b>faltan ${fmt1.format(peor.d)}</b>.`);
+        }
+        return frases.length
+          ? `<div class="aviso"><b>Dónde la meta pide más de lo que la capacidad alcanza:</b><ul style="margin:4px 0 0;padding-left:18px">${frases.slice(0, 5).map(f => `<li>${f}</li>`).join('')}</ul></div>`
+          : '<p class="nota">La capacidad alcanza lo que pide la meta en todas las etapas.</p>';
+      })()}
+      <div class="tabla"><table class="t0">
       <thead>
-        <tr><th rowspan="2">Etapa</th>${sem.map(s => `<th colspan="2" class="par" title="${s.fecha}">${s.etiqueta} <small>${s.fecha.slice(5)}</small></th>`).join('')}${P.semanas.map(f => `<th colspan="2" class="par fut">${f.etiqueta} <small>pronóstico</small>${infoSemana(P)}</th>`).join('')}</tr>
+        <tr><th rowspan="2">Etapa</th><th rowspan="2">Escenario</th>${sem.map(s => `<th colspan="2" class="par" title="${s.fecha}">${s.etiqueta} <small>${s.fecha.slice(5)}</small></th>`).join('')}${P.semanas.map(f => `<th colspan="2" class="par fut">${f.etiqueta} <small>pronóstico</small>${infoSemana(P)}</th>`).join('')}</tr>
         <tr>${sem.map(() => '<th class="sub par">Sitios</th><th class="sub">kWp</th>').join('')}${P.semanas.map(() => '<th class="sub par fut">Sitios</th><th class="sub fut">kWp</th>').join('')}</tr>
       </thead>
-      <tbody>${etapas.map(e => `<tr><td>${esc(e.etiqueta)}${ritmoInfo(e.etapa_id)}</td>${sem.map((s, i) => {
+      <tbody>${etapas.map(e => `<tr class="esc-real"><td rowspan="3">${esc(e.etiqueta)}${ritmoInfo(e.etapa_id)}</td><td class="esc">Real</td>${sem.map((s, i) => {
         const x = s.porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 }, x0 = sem[0].porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 };
         const ds = sitiosDe(s, e);
         const pr = prevision(s.fecha, e.etapa_id);
         return `<td class="par">${num(fmt.format(x.sitios), `${e.etiqueta} · ${s.etiqueta} ${s.fecha}`, ds, 'sitios')}${i ? delta(x.sitios, x0.sitios) : ''}${pr ? `<span class="vspron" title="Se había pronosticado ${fmt1.format(pr.sitios)}">pron. ${fmt1.format(pr.sitios)}</span>` : ''}</td><td>${num(fmt.format(x.kwp), `${e.etiqueta} · ${s.etiqueta} ${s.fecha} · kWp`, ds, 'sitios', { explica: `Suma de kWp de ${fmt.format(ds.length)} sitios en ${e.etiqueta} el ${s.fecha}: ${fmt1.format(x.kwp)} kWp`, ordenar: 'kwp' })}${i ? delta(x.kwp, x0.kwp) : ''}</td>`;
-      }).join('')}${P.semanas.map(f => { const x = f.porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 };
-        const t = f.traza && f.traza[e.etapa_id];
-        return `<td class="par fut">${t ? numPron(fmt1.format(x.sitios), `${e.etiqueta} · ${f.etiqueta} (pronóstico)`, t, e.etiqueta) : fmt1.format(x.sitios)}</td><td class="fut">${fmt.format(x.kwp)}</td>`; }).join('')}</tr>`).join('')}</tbody>
-      <tfoot><tr><td>Llegan a instalación</td>${sem.map(() => '<td class="par"></td><td></td>').join('')}${P.semanas.map(f => `<td class="par fut">${f.instalados.sitios > 0 ? numInst(fmt1.format(f.instalados.sitios), `Llegan a instalación · ${f.etiqueta}`, f.instalados) : '0'}</td><td class="fut">${fmt.format(f.instalados.kwp)}</td>`).join('')}</tr>
-      <tr><td>Total</td>${sem.map((s, i) => `
+      }).join('')}${P.semanas.map(() => '<td class="par fut"></td><td class="fut"></td>').join('')}</tr>
+        <tr class="esc-goal"><td class="esc">Goal</td>${sem.map(() => '<td class="par"></td><td></td>').join('')}${P.meta.semanas.map((g, i) => { const x = g.porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 };
+          const n = P.meta.necesita.find(z => z.id === e.etapa_id);
+          return `<td class="par fut">${n ? numMeta(fmt1.format(x.sitios), `${e.etiqueta} · lo que pide la meta`, n, P) : fmt1.format(x.sitios)}</td><td class="fut">${fmt.format(x.kwp)}</td>`; }).join('')}</tr>
+        <tr class="esc-fc"><td class="esc">Forecast</td>${sem.map(() => '<td class="par"></td><td></td>').join('')}${P.semanas.map((f, i) => { const x = f.porEtapa[e.etapa_id] || { sitios: 0, kwp: 0 };
+          const t = f.traza && f.traza[e.etapa_id];
+          const g = (P.meta.semanas[i].porEtapa[e.etapa_id] || {}).sitios || 0;
+          const d = x.sitios - g;
+          return `<td class="par fut">${t ? numPron(fmt1.format(x.sitios), `${e.etiqueta} · ${f.etiqueta} (pronóstico)`, t, e.etiqueta) : fmt1.format(x.sitios)}${Math.abs(d) >= 0.5 ? `<span class="brecha ${d < 0 ? 'neg' : ''}">${d > 0 ? '+' : '−'}${fmt1.format(Math.abs(d))}</span>` : ''}</td><td class="fut">${fmt.format(x.kwp)}</td>`; }).join('')}</tr>`).join('')}</tbody>
+      <tfoot><tr><td colspan="2">Llegan a instalación</td>${sem.map(() => '<td class="par"></td><td></td>').join('')}${P.semanas.map(f => `<td class="par fut">${f.instalados.sitios > 0 ? numInst(fmt1.format(f.instalados.sitios), `Llegan a instalación · ${f.etiqueta}`, f.instalados) : '0'}</td><td class="fut">${fmt.format(f.instalados.kwp)}</td>`).join('')}</tr>
+      <tr><td colspan="2">Total</td>${sem.map((s, i) => `
         <td class="par">${fmt.format(s.sitios)}${i ? delta(s.sitios, sem[0].sitios) : ''}</td>
         <td>${fmt.format(s.kwp)}${i ? delta(s.kwp, sem[0].kwp) : ''}</td>`).join('')}${P.semanas.map(f => `<td class="par fut">${fmt1.format(f.sitios)}</td><td class="fut">${fmt.format(f.kwp)}</td>`).join('')}</tr></tfoot>
     </table></div>`)}
@@ -1572,6 +1627,24 @@ function vistaCapacidad(M, raw) {
             </tbody></table></div>
           <p class="nota">Esfuerzo usado: ${c.esfuerzo.map(e => `${esc(e.ticket)} ${e.h == null ? '— sin dato' : fmt1.format(e.h) + ' h'} <span class="supuesto">(${e.fuente})</span>`).join(' · ')}</p>
         </details>`).join('')}`);
+    })()}
+
+    ${(() => { const P = pronostico(M, ESTADO.sim);
+      const filas = Object.entries(P.meta.horasEquipo).map(([eq, h]) => ({ eq, pide: h, hay: P.capSemana[eq] || 0 }))
+        .sort((a, b) => (b.pide - b.hay) - (a.pide - a.hay));
+      const faltan = filas.filter(f => f.pide > f.hay).length;
+      return seccion('pideMeta', 'Lo que pide la meta', 'pideMeta',
+        faltan ? `${faltan} ${faltan === 1 ? 'equipo no alcanza' : 'equipos no alcanzan'}` : 'todos alcanzan',
+        `Plan de ensueño · meta de ${fmt.format(P.metaMes)} sitios al mes · ${fmt1.format(P.meta.entradaSemana)} sitios deben entrar por semana`,
+        `<div class="tabla"><table>
+          <thead><tr><th class="izq">Equipo</th><th>Pide la meta (h/sem)</th><th>Tiene (h/sem)</th><th>Diferencia</th></tr></thead>
+          <tbody>${filas.map(f => `<tr>
+            <td class="izq">${esc(f.eq)}</td>
+            <td>${fmt.format(f.pide)}</td>
+            <td>${fmt.format(f.hay)}</td>
+            <td><span class="pill ${f.pide > f.hay ? 'bad' : 'ok'}">${f.hay - f.pide > 0 ? '+' : '−'}${fmt.format(Math.abs(f.hay - f.pide))} h</span></td></tr>`).join('')}</tbody>
+        </table></div>
+        <p class="nota">Horas por semana que exigiría instalar ${fmt1.format(P.metaMes / 4.33)} sitios por semana, si cada ticket se cumple en su SLA y sobreviven las tasas del Reverse Eng Model.</p>`);
     })()}
 
     ${seccion('personas', 'Por persona', null,

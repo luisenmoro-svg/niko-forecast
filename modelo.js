@@ -211,5 +211,70 @@
     return { semanas: salida, cuellos: cuellos, sinEsfuerzo: Array.from(sinEsfuerzo), sinSla: Array.from(sinSla), sinQuien: Array.from(sinQuien) };
   }
 
-  raiz.NIKO_MODELO = { calcularPronostico: calcularPronostico };
+  // El plan de ensueño: se recorre la cadena HACIA ATRÁS desde la meta de instalaciones.
+  // Si cada ticket se cumple en su SLA y sobreviven las tasas del Reverse Eng Model,
+  // ¿cuántos sitios deben estar en cada etapa cada semana, y cuántos deben entrar?
+  // e = { ritmos, metaSemana, kwpPorSitio, sla(tipo), semanas, esfuerzo(tipo, rev) }
+  function calcularMeta(e) {
+    const ritmos = e.ritmos || [];
+    const semanas = e.semanas || 10;
+    // Días que promete cada etapa: secuencial suma, paralelo toma el mayor.
+    const diasDe = r => {
+      if (r.modo === 'proceso') return r.dias || 1;
+      let sec = 0, par = 0;
+      for (const t of (r.tickets || [])) {
+        const d = e.sla(t.tipo);
+        if (d == null) continue;
+        if (t.orden === 'par') par = Math.max(par, d); else sec += d;
+      }
+      return (sec + par) || r.diasRef || 5;
+    };
+    // Hacia atrás: para que salgan N de la última etapa, deben entrar N / conversión.
+    const necesita = [];
+    let n = e.metaSemana || 0;
+    for (let i = ritmos.length - 1; i >= 0; i--) {
+      const r = ritmos[i];
+      const conv = r.conversion == null ? 1 : r.conversion;
+      const entran = conv > 0 ? n / conv : 0;
+      // Sitios parados en la etapa: lo que entra por semana × las semanas que tarda.
+      const dias = diasDe(r);
+      necesita.unshift({ cod: r.cod, id: r.id, entranSemana: entran, dias: dias,
+                         sitios: entran * (dias / 5), conversion: conv });
+      n = entran;
+    }
+    const entradaSemana = n;   // lo que debe entrar a la primera etapa
+
+    // Horas por semana que ese plan exige a cada equipo y a cada persona.
+    const horasEquipo = {}, horasTipo = {};
+    ritmos.forEach(function (r, i) {
+      if (r.modo !== 'cola') return;
+      const flujo = necesita[i].entranSemana;
+      for (const t of (r.tickets || [])) {
+        const fases = t.revision ? [false, true] : [false];
+        for (const esRev of fases) {
+          const esf = e.esfuerzo(t.tipo, esRev);
+          if (esf.h == null) continue;
+          const clave = t.tipo + (esRev ? ' (revisión)' : '');
+          horasTipo[clave] = (horasTipo[clave] || 0) + flujo * esf.h;
+          horasEquipo[t.equipo] = (horasEquipo[t.equipo] || 0) + flujo * esf.h;
+        }
+      }
+    });
+
+    // La foto semanal del plan: en régimen, cada etapa mantiene sus sitios parados.
+    const salida = [];
+    for (let w = 1; w <= semanas; w++) {
+      const porEtapa = {};
+      for (const x of necesita) porEtapa[x.id] = { sitios: Math.round(x.sitios * 10) / 10,
+                                                  kwp: Math.round(x.sitios * (e.kwpPorSitio || 0)) };
+      salida.push({ etiqueta: w + 'S', meta: true, porEtapa: porEtapa,
+                    instalados: { sitios: e.metaSemana || 0, kwp: (e.metaSemana || 0) * (e.kwpPorSitio || 0) },
+                    sitios: Math.round(necesita.reduce((a, x) => a + x.sitios, 0)),
+                    kwp: Math.round(necesita.reduce((a, x) => a + x.sitios, 0) * (e.kwpPorSitio || 0)) });
+    }
+    return { semanas: salida, necesita: necesita, entradaSemana: entradaSemana,
+             horasEquipo: horasEquipo, horasTipo: horasTipo };
+  }
+
+  raiz.NIKO_MODELO = { calcularPronostico: calcularPronostico, calcularMeta: calcularMeta };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

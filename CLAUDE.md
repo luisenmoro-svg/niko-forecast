@@ -223,6 +223,14 @@ Aplican a toda vista nueva, no solo a las existentes.
 - **La comparación contra T0 está pendiente** hasta que la tabla `pronosticos` acumule
   historia: hace falta un pronóstico guardado de hace semanas para contrastar cuánto
   cambió lo esperado. El workflow ya la escribe a diario.
+- **El Company Goal se calcula hacia atrás** (`calcularMeta()` en `modelo.js`): desde las
+  instalaciones que pide la meta se sube por la cadena dividiendo entre cada tasa de
+  conversión, y los días de cada etapa salen del SLA de sus tickets (secuencial suma,
+  paralelo toma el mayor). De ahí salen los sitios que debe haber parados en cada etapa,
+  cuántos deben entrar por semana y las horas que el plan exige a cada equipo.
+- La tabla de Flujo muestra **tres escenarios por etapa**: Real en las semanas pasadas,
+  Goal y Forecast en las futuras, con la brecha Goal − Forecast al pie de cada celda.
+  Arriba, una frase por cada brecha de 5 sitios o más.
 - El simulador cambia solo `ESTADO.sim`; nunca toca los datos.
 
 ## Reglas de trabajo
