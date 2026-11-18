@@ -37,11 +37,23 @@ Escritas por el script: `snapshots`, `deals_snapshot`, `tickets_snapshot`, `etap
   `estado` ∈ `firme` | `supuesto` | `por_definir`.
 - `personas`: la llave primaria `owner_id` es el **`hubspot_owner_id`**.
 - `etapas_deal` tiene dos banderas manuales que el sync **no pisa** (su upsert solo manda
-  `etapa_id`, `etiqueta`, `pipeline`, `orden`): `es_instalado` (cuenta en Real) y
-  `es_inactivo` (Inviable, Dormant, Churned: no cuentan en la cadena, el T0,
-  goal/forecast/real, ni en capacidad; sus tickets salen listados para limpiarse).
+  `etapa_id`, `etiqueta`, `pipeline`, `orden`):
+  - **`es_instalado`**: cuenta en Real. Las 7 de Enterprise desde 2.15 en adelante
+    (`1020225614`, `267654746`, `1187009283`, `1020326034`, `1020326036`,
+    `1109385340`, `1109385341`). SQL entregado; **sin confirmación de que se corrió**.
+  - **`es_inactivo`**: no cuentan en la cadena, el T0, goal/forecast/real ni en
+    capacidad; sus tickets abiertos salen listados en la pestaña de capacidad para
+    cerrarlos. **Marcadas las 6** (verificado en Supabase, 18 nov 2026):
+    Enterprise `958940487` 00.A Inviable, `268051860` 00.B Dormant,
+    `1440290942` Churned deal; Sales SMBs `1398903637` Closed Lost,
+    `1398903636` Dormant, `1431169623` Churn.
+  - Un ticket sale de la capacidad solo si **todos** sus deals están en etapa inactiva:
+    uno compartido con un deal vivo sigue contando.
 - `config.js > etapasPostInstalacion` lista las etapas que se grafican aparte, en la zona
   punteada «post-instalación», para que su histórico no aplaste la cadena.
+- **La cadena se deja en escala lineal a propósito.** 2.01 Análisis preliminar domina
+  porque el embudo es así de desigual, y cada tarjeta lleva su número. No cambiar a
+  escala raíz cuadrada ni similar: haría ver las etapas más parejas de lo que son.
 - `segmento` debe ser **idéntico a la etiqueta** del pipeline de deal en HubSpot:
   el script escribe en `deals_snapshot.segmento` el label del pipeline
   (`dealPipeLabel[...]`), no un nombre corto. Los tres que se sincronizan son
