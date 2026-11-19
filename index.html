@@ -686,6 +686,30 @@ function datosEjemplo() {
 // Los tiempos por etapa de HubSpot NO se usan: se mueven por lotes, no miden el proceso.
 // Sitios que entraron a la cadena por semana en las últimas 4 fotos: deal_ids que
 // aparecen y antes no estaban. Es el ritmo real de entrada.
+// Una sola frase para el ritmo real, use la medida de HubSpot o las fotos.
+function txtRitmo(e, largo) {
+  if (!e) return 'no medible';
+  const sit = n => `${fmt1.format(n)} ${n === 1 ? 'sitio' : 'sitios'} por semana`;
+  if (e.fuente !== 'hubspot') return `${sit(e.sitios)}, medidos entre las últimas ${e.intervalos} fotos`;
+  return sit(e.sitios)
+    + (largo ? `, el promedio de las últimas 4 semanas de entradas a levantamiento en HubSpot`
+             + (e.prom8 != null ? ` (las 8 semanas promedian ${fmt1.format(e.prom8)}: la entrada llega por lotes)` : '') : '');
+}
+
+// Ritmo de entrada medido en HubSpot con las fechas de entrada a levantamiento.
+// Promedio de las últimas 4 semanas. No depende de que haya fotos acumuladas.
+function entradaMedida(M) {
+  const em = CFG.entradaMedida;
+  if (!em || !em.semanas || em.semanas.length < 4) return null;
+  const ult = em.semanas.slice(-4);
+  const prom = sum(ult, x => x.sitios) / ult.length;
+  const prom8 = em.semanas.length >= 8
+    ? sum(em.semanas.slice(-8), x => x.sitios) / 8 : null;
+  const kwp = M.metricas.goal.sitios ? M.metricas.goal.kwp / M.metricas.goal.sitios : 15;
+  return { fuente: 'hubspot', sitios: prom, prom8, kwpPorSitio: kwp, serie: em.semanas, medidoEl: em.medidoEl,
+           irregular: prom8 != null && prom8 > 0 && Math.abs(prom - prom8) / prom8 > 0.5 };
+}
+
 function entradaReal(M) {
   const sem = M.semanas || [];
   if (sem.length < 2) return null;
@@ -767,7 +791,8 @@ function pronostico(M, sim, opciones) {
   const O = opciones || {};
   const ritmos = CFG.ritmoEtapas || [];
 
-  const eReal = entradaReal(M), eMeta = entradaMeta(M);
+  const eMedida = entradaMedida(M), eFotos = entradaReal(M), eMeta = entradaMeta(M);
+  const eReal = eMedida || eFotos;   // HubSpot manda; las fotos son el respaldo
   const pedido = S.entrada || 'real';
   const hayHistoria = !!eReal;
   const modoEntrada = pedido === 'meta' ? 'meta' : (hayHistoria ? 'real' : 'sin-historia');
@@ -864,7 +889,7 @@ function pronostico(M, sim, opciones) {
   });
 
   return { ...R, promesa: Prom, meta: Meta, metaMes, capSemana, entrada: nuevos, modoEntrada,
-           eReal, eMeta, hayHistoria, porSla, esfuerzoDe: esfuerzo, quienesPueden: puede };
+           eReal, eMedida, eFotos, eMeta, hayHistoria, porSla, esfuerzoDe: esfuerzo, quienesPueden: puede };
 }
 
 // ====================== Olas: dónde hay que prepararse ======================
@@ -1080,6 +1105,12 @@ function numInst(texto, titulo, inst, etiqueta) {
   DRILL.set(id, { titulo, tipo: 'instalados', inst, etapaEtiqueta: etiqueta, mostrado: texto, registros: [] });
   return `<button class="num" type="button" data-d="${id}">${texto}</button>`;
 }
+// La serie semanal de entradas medidas en HubSpot, detras del numero del ritmo real.
+function numEntrada(texto, titulo, e) {
+  const id = 'd' + (++drillSeq);
+  DRILL.set(id, { titulo, tipo: 'entrada', e, mostrado: texto, registros: [] });
+  return `<button class="num" type="button" data-d="${id}">${texto}</button>`;
+}
 function numMeta(texto, titulo, n, P) {
   const id = 'd' + (++drillSeq);
   DRILL.set(id, { titulo, tipo: 'meta', n, P, mostrado: texto, registros: [] });
@@ -1165,12 +1196,33 @@ function pintarDetalle() {
     document.getElementById('pd-c').innerHTML = `<div class="tabla"><table>
       <tbody>
         <tr><td class="izq">Al empezar la semana</td><td>${n1(t.inicio)}</td><td class="izq">sitios en ${esc(d.etapaEtiqueta)}</td></tr>
-        <tr><td class="izq">+ Llegaron</td><td>${n1(t.llegaron)}</td><td class="izq">${t.deCod ? `de ${esc(t.deCod)}, ya descontada su pérdida` : '—'}</td></tr>
+        <tr><td class="izq">+ Llegaron</td><td>${n1(t.llegaron)}</td><td class="izq">${
+          (t.deFuentes && t.deFuentes.length)
+            ? (t.deFuentes.length === 1
+                ? `de ${esc(t.deFuentes[0].cod)}, ya descontada su pérdida`
+                : `de ${t.deFuentes.map(f => `<b>${esc(f.cod)}</b> ${n1(f.sitios)}`).join(' + ')}, ya descontada la pérdida de cada una`)
+            : (t.deCod ? `de ${esc(t.deCod)}, ya descontada su pérdida` : '—')}</td></tr>
         ${t.nuevos ? `<tr><td class="izq">+ Entraron nuevos</td><td>${n1(t.nuevos)}</td><td class="izq">sitios que entran a la cadena esta semana</td></tr>` : ''}
         <tr><td class="izq">− Salieron</td><td>${n1(t.salieron)}</td><td class="izq">${motivo}</td></tr>
         <tr class="marca"><td class="izq"><b>Al terminar la semana</b></td><td><b>${n1(t.fin)}</b></td><td class="izq">${fmt.format(Math.round(t.kwpFin))} kWp</td></tr>
       </tbody></table></div>
       ${t.salieron > 0 && t.conversion < 1 ? `<p class="nota">De los ${n1(t.salieron)} que salieron, <b>${n1(t.perdidos)} se pierden</b> en el camino: la tasa de conversión de esta etapa es ${pct(t.conversion)}, del Reverse Eng Model. A la siguiente llegan ${n1(t.salieron - t.perdidos)}.</p>` : ''}`;
+    return;
+  }
+  if (d.tipo === 'entrada') {
+    const e = d.e, ult = e.serie.slice(-4).map(x => x.semana);
+    document.getElementById('pd-n').textContent = 'Sitios que entraron a levantamiento cada semana, según HubSpot';
+    document.getElementById('pd-c').innerHTML = `<div class="tabla"><table>
+      <thead><tr><th class="izq">Semana</th><th>Sitios</th><th class="izq"></th></tr></thead>
+      <tbody>${e.serie.map(x => `<tr${ult.includes(x.semana) ? ' class="marca"' : ''}>
+        <td class="izq">${esc(x.semana)}</td><td>${fmt.format(x.sitios)}</td>
+        <td class="izq">${ult.includes(x.semana) ? 'cuenta para el promedio' : ''}</td></tr>`).join('')}
+        <tr class="marca"><td class="izq"><b>Promedio de las últimas 4</b></td><td><b>${fmt1.format(e.sitios)}</b></td><td class="izq">es el «ritmo real»</td></tr>
+        ${e.prom8 != null ? `<tr><td class="izq">Promedio de las 8</td><td>${fmt1.format(e.prom8)}</td><td class="izq">incluye el lote de octubre</td></tr>` : ''}
+      </tbody></table></div>
+      <p class="nota">Cuenta los deals cuya fecha de entrada a <b>2.02</b> (<code>hs_v2_date_entered</code>) cae en cada semana. Medido el ${esc(e.medidoEl)}.</p>
+      ${e.irregular ? `<p class="aviso">La entrada <b>no es pareja</b>: dos semanas de octubre traen casi todo y las últimas cuatro están casi vacías. El promedio de 4 semanas describe hoy, no necesariamente el ritmo sostenido.</p>` : ''}
+      <p class="fuente">Pendiente: validar esta serie contra las fotos diarias cuando haya suficiente historia.</p>`;
     return;
   }
   if (d.tipo === 'instalados') {
@@ -1371,7 +1423,7 @@ function infoSemana(P) {
     ? `entran ${fmt1.format(P.eMeta.sitios)} sitios por semana, los que pediría la meta`
     : P.modoEntrada === 'sin-historia'
       ? 'no se puede medir el ritmo de entrada, se usa el de la meta'
-      : `entran ${fmt1.format(P.eReal.sitios)} sitios por semana, el ritmo real medido`;
+      : `entran ${txtRitmo(P.eReal)}, el ritmo real medido`;
   const esc2 = simActivo() ? ' Escenario del simulador: valores cambiados a mano.' : ' Escenario: datos reales, sin cambios del simulador.';
   return info_texto(`Pronóstico: parte de la semana anterior; cada etapa suelta los sitios que su equipo alcanza a cerrar (o los que marca el proceso), se aplican las pérdidas por etapa y se suman los sitios nuevos. Ritmo de entrada: ${ritmo}.${esc2} Clic en cualquier número para ver su cuenta.`);
 }
@@ -1447,7 +1499,7 @@ function vistaFlujo(M, raw) {
           ? `${fmt1.format(P.eMeta.sitios)} sitios por semana, los que haría falta meter para la meta.`
           : P.modoEntrada === 'sin-historia'
             ? 'no medible todavía: hacen falta dos fotos separadas por una semana. Se usa el de la meta.'
-            : `${fmt1.format(P.eReal.sitios)} sitios por semana, medidos entre las últimas ${P.eReal.intervalos} fotos.`}</p>
+            : `${txtRitmo(P.eReal, true)}.`}</p>
       <h3 style="font-size:13px;margin:10px 0 4px">Lo que el pronóstico supone</h3>
       <ul class="nota" style="margin:0;padding-left:18px">
         <li>Qué ticket es el que manda en cada etapa.</li>
@@ -1470,8 +1522,13 @@ function vistaFlujo(M, raw) {
         const filtro = CFG.filtroListados || {};
         return `<div class="aviso"><b>Brecha de entrada, no de capacidad.</b>
           Para la meta de ${fmt.format(P.metaMes)} sitios al mes deben entrar <b>${fmt1.format(pide)} sitios viables por semana</b> a ${esc(primera.cod || '')}`
-          + (entranHoy != null ? `; hoy entran <b>${fmt1.format(entranHoy)}</b>` : '; el ritmo de hoy todavía no es medible')
+          + (entranHoy != null
+              ? `; hoy entran ${P.eReal.fuente === 'hubspot'
+                  ? numEntrada(`<b>${fmt1.format(entranHoy)}</b>`, 'Ritmo de entrada a levantamiento', P.eReal)
+                  : `<b>${fmt1.format(entranHoy)}</b>`}`
+              : '; el ritmo de hoy todavía no es medible')
           + `. ${entranHoy != null && entranHoy < pide ? `Faltan ${fmt1.format(pide - entranHoy)} por semana.` : ''}
+          ${entranHoy != null && P.eReal.fuente === 'hubspot' ? `<br><small>El ritmo real es el promedio de las últimas 4 semanas de entradas a 2.02 en HubSpot${P.eReal.prom8 != null ? `; las 8 semanas promedian ${fmt1.format(P.eReal.prom8)} porque la entrada llega por lotes` : ''}. Clic en el número para ver la serie.</small>` : ''}
           <br><small>Los sitios parados por etapa son contexto: dicen dónde está hoy el pipeline, no cuánta gente falta. Las horas que exige la meta están en «Lo que pide la meta», en la pestaña de capacidad.</small></div>`
           + (filtro.cohorte ? `<p class="fuente">Filtro de listados (${esc(filtro.cod)}): de ${fmt.format(filtro.cohorte.total)} RPU cargados hace 4 a 12 meses, ${fmt.format(filtro.cohorte.pasaron)} pasaron a levantamiento (${pct(filtro.tasa)}) y ${fmt.format(filtro.cohorte.muertos)} se descartaron. Esa etapa no es parte de la cadena de instalación.</p>` : '');
       })()}
@@ -1615,7 +1672,7 @@ function vistaCapacidad(M, raw) {
         <p class="fuente">${P.modoEntrada === 'meta'
             ? `Entran <b>${fmt1.format(P.eMeta.sitios)} sitios por semana</b>, los que harían falta para la meta de ${fmt.format(M.metricas.goal.sitios)} al mes despejando las conversiones (${pct(P.eMeta.conv)} sobrevive la cadena).`
             : P.eReal
-              ? `Entran <b>${fmt1.format(P.eReal.sitios)} sitios por semana</b>, el ritmo real de las últimas ${P.eReal.intervalos} fotos.`
+              ? `Entran <b>${fmt1.format(P.eReal.sitios)} sitios por semana</b>: ${txtRitmo(P.eReal, true)}.`
               : 'Ritmo de entrada no medible: ver el aviso de arriba.'}</p>
         ${P.sinEsfuerzo.length ? `<p class="aviso error">${P.sinEsfuerzo.length} colas no se pueden proyectar porque su ticket no tiene esfuerzo en el catálogo: ${P.sinEsfuerzo.map(esc).join(', ')}. Esas etapas quedan detenidas en el pronóstico.</p>` : ''}
         <p class="aviso">Pronóstico preliminar. El ritmo de cada etapa sale de la capacidad del equipo que cierra su ticket, o de los días del Reverse Eng Model. <b>No usa los tiempos por etapa de HubSpot</b>, que se mueven por lotes.</p>

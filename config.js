@@ -89,6 +89,21 @@ window.NIKO_CONFIG = {
   // instalaron; 65 siguen activos, así que el rango va de 14.7 % a 27.5 %.
   tasaDesdeLevantamiento: { observada: 0.147, rangoAlto: 0.275, cohorte: { total: 510, instalados: 75, muertos: 370, activos: 65 } },
 
+  // Ritmo de entrada a levantamiento, medido con hs_v2_date_entered de 2.02.
+  // La entrada es por lotes: dos semanas de octubre traen casi todo. El "ritmo real"
+  // es el promedio de las últimas 4 semanas, pero la serie completa se muestra para
+  // que se vea la irregularidad.
+  entradaMedida: {
+    medidoEl: '2026-11-18',
+    semanas: [
+      { semana: '2026-09-21', sitios: 1 }, { semana: '2026-09-28', sitios: 0 },
+      { semana: '2026-10-05', sitios: 25 }, { semana: '2026-10-12', sitios: 37 },
+      { semana: '2026-10-19', sitios: 4 }, { semana: '2026-10-26', sitios: 0 },
+      { semana: '2026-11-02', sitios: 1 }, { semana: '2026-11-09', sitios: 2 },
+      { semana: '2026-11-16', sitios: 1 },
+    ],
+  },
+
   // Mínimos para inferir de los datos cuando falta información cargada.
   minCierresEsfuerzo: 10,   // cierres en 28 días para medir el esfuerzo de un tipo
   minCierresSkill: 3,       // cierres en 28 días para considerar que alguien puede tomarlo

@@ -154,9 +154,12 @@
         }
         for (const d of destinos) {
           if (!estado[d.id]) continue;   // rama hacia una etapa fuera de la cadena
-          entra[d.id] = entra[d.id] || { sitios: 0, kwp: 0, deCod: r.cod };
+          // Una etapa puede recibir de varias: se guarda cada procedencia con su
+          // cantidad, no solo la ultima, para que el panel las muestre todas.
+          entra[d.id] = entra[d.id] || { sitios: 0, kwp: 0, deCod: r.cod, fuentes: [] };
           entra[d.id].sitios += pasan * d.frac;
           entra[d.id].kwp += pasan * d.frac * kps;
+          entra[d.id].fuentes.push({ cod: r.cod, sitios: pasan * d.frac });
         }
       });
       for (const id in entra) { estado[id].sitios += entra[id].sitios; estado[id].kwp += entra[id].kwp; }
@@ -178,6 +181,18 @@
           cod: r.cod, inicio: inicio[r.id],
           llegaron: lleg ? lleg.sitios : 0,
           deCod: lleg ? lleg.deCod : null,
+          // Cada parte se redondea a un decimal, igual que la celda, y el sobrante del
+          // redondeo se le da a la mayor para que las partes sumen exactamente el total.
+          deFuentes: lleg && lleg.fuentes ? (function (fs) {
+            const r1 = x => Math.round(x * 10) / 10;
+            const out = fs.map(function (f) { return { cod: f.cod, sitios: r1(f.sitios) }; });
+            const dif = r1(r1(lleg.sitios) - out.reduce(function (a, x) { return a + x.sitios; }, 0));
+            if (dif && out.length) {
+              const may = out.reduce(function (a, x) { return x.sitios > a.sitios ? x : a; }, out[0]);
+              may.sitios = r1(may.sitios + dif);
+            }
+            return out;
+          })(lleg.fuentes) : [],
           salieron: salio[r.id] || 0,
           porque: porque[r.id] || { modo: 'vacio' },
           perdidos: perdio[r.id] || 0,
