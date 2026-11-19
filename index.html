@@ -686,14 +686,22 @@ function datosEjemplo() {
 // Los tiempos por etapa de HubSpot NO se usan: se mueven por lotes, no miden el proceso.
 // Sitios que entraron a la cadena por semana en las últimas 4 fotos: deal_ids que
 // aparecen y antes no estaban. Es el ritmo real de entrada.
+// Por qué el promedio de 8 semanas y no el de 4: la carga es por lotes.
+function notaLotes(e) {
+  if (!e || e.fuente !== 'hubspot' || !e.lote) return '';
+  const MES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const mes = MES[Number(e.lote.de.slice(5, 7)) - 1] || '';
+  return `La entrada llega por lotes (${fmt.format(e.lote.sitios)} de ${fmt.format(e.total)} sitios en dos semanas de ${mes}); depende de cuándo se cargan listados, no de un flujo constante.`;
+}
+
 // Una sola frase para el ritmo real, use la medida de HubSpot o las fotos.
 function txtRitmo(e, largo) {
   if (!e) return 'no medible';
   const sit = n => `${fmt1.format(n)} ${n === 1 ? 'sitio' : 'sitios'} por semana`;
   if (e.fuente !== 'hubspot') return `${sit(e.sitios)}, medidos entre las últimas ${e.intervalos} fotos`;
   return sit(e.sitios)
-    + (largo ? `, el promedio de las últimas 4 semanas de entradas a levantamiento en HubSpot`
-             + (e.prom8 != null ? ` (las 8 semanas promedian ${fmt1.format(e.prom8)}: la entrada llega por lotes)` : '') : '');
+    + (largo ? `, el promedio de las últimas ${e.ventana} semanas de entradas a levantamiento en HubSpot`
+             + `; en las últimas 4 semanas entró casi nada (${fmt1.format(e.prom4)} por semana)` : '');
 }
 
 // Ritmo de entrada medido en HubSpot con las fechas de entrada a levantamiento.
@@ -701,13 +709,24 @@ function txtRitmo(e, largo) {
 function entradaMedida(M) {
   const em = CFG.entradaMedida;
   if (!em || !em.semanas || em.semanas.length < 4) return null;
-  const ult = em.semanas.slice(-4);
-  const prom = sum(ult, x => x.sitios) / ult.length;
-  const prom8 = em.semanas.length >= 8
-    ? sum(em.semanas.slice(-8), x => x.sitios) / 8 : null;
+  const ult4 = em.semanas.slice(-4);
+  const prom4 = sum(ult4, x => x.sitios) / ult4.length;
+  // El valor principal es el promedio de 8 semanas: la entrada llega por lotes, así que
+  // una ventana de 4 semanas puede caer entera en un valle y describir solo el valle.
+  const ult8 = em.semanas.slice(-8);
+  const prom8 = ult8.length >= 8 ? sum(ult8, x => x.sitios) / 8 : null;
+  const prom = prom8 != null ? prom8 : prom4;
   const kwp = M.metricas.goal.sitios ? M.metricas.goal.kwp / M.metricas.goal.sitios : 15;
-  return { fuente: 'hubspot', sitios: prom, prom8, kwpPorSitio: kwp, serie: em.semanas, medidoEl: em.medidoEl,
-           irregular: prom8 != null && prom8 > 0 && Math.abs(prom - prom8) / prom8 > 0.5 };
+  // El lote: la mayor racha de dos semanas seguidas contra el total de la ventana.
+  let lote = null;
+  for (let i = 0; i + 1 < ult8.length; i++) {
+    const par = ult8[i].sitios + ult8[i + 1].sitios;
+    if (!lote || par > lote.sitios) lote = { sitios: par, de: ult8[i].semana };
+  }
+  const total = sum(ult8, x => x.sitios);
+  return { fuente: 'hubspot', sitios: prom, prom4, prom8, ventana: ult8.length, total, lote,
+           kwpPorSitio: kwp, serie: em.semanas, medidoEl: em.medidoEl,
+           irregular: prom8 != null && prom8 > 0 && Math.abs(prom4 - prom8) / prom8 > 0.5 };
 }
 
 function entradaReal(M) {
@@ -1210,18 +1229,18 @@ function pintarDetalle() {
     return;
   }
   if (d.tipo === 'entrada') {
-    const e = d.e, ult = e.serie.slice(-4).map(x => x.semana);
+    const e = d.e, ult = e.serie.slice(-e.ventana).map(x => x.semana), ult4 = e.serie.slice(-4).map(x => x.semana);
     document.getElementById('pd-n').textContent = 'Sitios que entraron a levantamiento cada semana, según HubSpot';
     document.getElementById('pd-c').innerHTML = `<div class="tabla"><table>
       <thead><tr><th class="izq">Semana</th><th>Sitios</th><th class="izq"></th></tr></thead>
       <tbody>${e.serie.map(x => `<tr${ult.includes(x.semana) ? ' class="marca"' : ''}>
         <td class="izq">${esc(x.semana)}</td><td>${fmt.format(x.sitios)}</td>
-        <td class="izq">${ult.includes(x.semana) ? 'cuenta para el promedio' : ''}</td></tr>`).join('')}
-        <tr class="marca"><td class="izq"><b>Promedio de las últimas 4</b></td><td><b>${fmt1.format(e.sitios)}</b></td><td class="izq">es el «ritmo real»</td></tr>
-        ${e.prom8 != null ? `<tr><td class="izq">Promedio de las 8</td><td>${fmt1.format(e.prom8)}</td><td class="izq">incluye el lote de octubre</td></tr>` : ''}
+        <td class="izq">${ult.includes(x.semana) ? 'cuenta para el promedio' + (ult4.includes(x.semana) ? ' · últimas 4' : '') : 'fuera de la ventana'}</td></tr>`).join('')}
+        <tr class="marca"><td class="izq"><b>Promedio de las últimas ${e.ventana}</b></td><td><b>${fmt1.format(e.sitios)}</b></td><td class="izq">es el «ritmo real»</td></tr>
+        <tr><td class="izq">Promedio de las últimas 4</td><td>${fmt1.format(e.prom4)}</td><td class="izq">el valle: entró casi nada</td></tr>
       </tbody></table></div>
       <p class="nota">Cuenta los deals cuya fecha de entrada a <b>2.02</b> (<code>hs_v2_date_entered</code>) cae en cada semana. Medido el ${esc(e.medidoEl)}.</p>
-      ${e.irregular ? `<p class="aviso">La entrada <b>no es pareja</b>: dos semanas de octubre traen casi todo y las últimas cuatro están casi vacías. El promedio de 4 semanas describe hoy, no necesariamente el ritmo sostenido.</p>` : ''}
+      ${e.irregular ? `<p class="aviso">${notaLotes(e)} Por eso el «ritmo real» es el promedio de ${e.ventana} semanas: una ventana de 4 cae entera en el valle y mediría solo el valle.</p>` : ''}
       <p class="fuente">Pendiente: validar esta serie contra las fotos diarias cuando haya suficiente historia.</p>`;
     return;
   }
@@ -1528,7 +1547,7 @@ function vistaFlujo(M, raw) {
                   : `<b>${fmt1.format(entranHoy)}</b>`}`
               : '; el ritmo de hoy todavía no es medible')
           + `. ${entranHoy != null && entranHoy < pide ? `Faltan ${fmt1.format(pide - entranHoy)} por semana.` : ''}
-          ${entranHoy != null && P.eReal.fuente === 'hubspot' ? `<br><small>El ritmo real es el promedio de las últimas 4 semanas de entradas a 2.02 en HubSpot${P.eReal.prom8 != null ? `; las 8 semanas promedian ${fmt1.format(P.eReal.prom8)} porque la entrada llega por lotes` : ''}. Clic en el número para ver la serie.</small>` : ''}
+          ${entranHoy != null && P.eReal.fuente === 'hubspot' ? `<br><small>El ritmo real es el promedio de las últimas ${P.eReal.ventana} semanas de entradas a 2.02 en HubSpot; en las últimas 4 entró casi nada (${fmt1.format(P.eReal.prom4)} por semana). ${notaLotes(P.eReal)} Clic en el número para ver la serie.</small>` : ''}
           <br><small>Los sitios parados por etapa son contexto: dicen dónde está hoy el pipeline, no cuánta gente falta. Las horas que exige la meta están en «Lo que pide la meta», en la pestaña de capacidad.</small></div>`
           + (filtro.cohorte ? `<p class="fuente">Filtro de listados (${esc(filtro.cod)}): de ${fmt.format(filtro.cohorte.total)} RPU cargados hace 4 a 12 meses, ${fmt.format(filtro.cohorte.pasaron)} pasaron a levantamiento (${pct(filtro.tasa)}) y ${fmt.format(filtro.cohorte.muertos)} se descartaron. Esa etapa no es parte de la cadena de instalación.</p>` : '');
       })()}
