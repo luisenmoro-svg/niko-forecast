@@ -1,0 +1,113 @@
+name: Guardián del modelo
+
+# Lovable sube directo a main, así que no se protege la rama: se vigila.
+# En cada push que toque el modelo, los scripts o el esquema, se corre el modelo
+# contra un resultado de referencia. Si cambió algo, se abre un issue con el diff
+# y el autor del commit. NO bloquea el push ni falla el workflow.
+
+on:
+  push:
+    paths:
+      - 'modelo.js'
+      - 'config.js'
+      - 'scripts/**'
+      - 'supabase/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  comparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Comparar el modelo contra la referencia
+        id: comparar
+        continue-on-error: true
+        run: |
+          set +e
+          salida=$(node scripts/modelo-referencia.mjs --check 2>&1)
+          codigo=$?
+          echo "$salida"
+          {
+            echo 'detalle<<FIN_DEL_DIFF'
+            echo "$salida"
+            echo 'FIN_DEL_DIFF'
+          } >> "$GITHUB_OUTPUT"
+          echo "cambio=$codigo" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Qué archivos vigilados cambiaron
+        id: archivos
+        if: steps.comparar.outputs.cambio != '0'
+        run: |
+          lista=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- \
+            modelo.js config.js scripts supabase 2>/dev/null || echo '(no se pudo comparar con el commit anterior)')
+          {
+            echo 'lista<<FIN_DE_LISTA'
+            echo "$lista"
+            echo 'FIN_DE_LISTA'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Abrir issue si el modelo cambió
+        if: steps.comparar.outputs.cambio != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const detalle = ${{ toJSON(steps.comparar.outputs.detalle) }};
+            const archivos = ${{ toJSON(steps.archivos.outputs.lista) }};
+            const sha = context.sha.slice(0, 7);
+            const autor = context.payload.head_commit?.author?.name
+              || context.payload.head_commit?.author?.username
+              || context.actor;
+            const mensaje = context.payload.head_commit?.message?.split('\n')[0] || '(sin mensaje)';
+
+            const cuerpo = [
+              `El modelo da un resultado distinto al de referencia después de \`${sha}\`.`,
+              '',
+              `- **Autor:** ${autor}`,
+              `- **Commit:** ${mensaje} (\`${sha}\`)`,
+              `- **Corrida:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              '',
+              '### Archivos vigilados que cambiaron',
+              '```',
+              archivos || '(ninguno detectado)',
+              '```',
+              '',
+              '### Qué cambió en los números',
+              '```',
+              detalle,
+              '```',
+              '',
+              '---',
+              '',
+              'Esto **no bloquea nada**: el push ya está en `main`.',
+              '',
+              'Si el cambio es intencional, corre `node scripts/modelo-referencia.mjs`,',
+              'haz commit del `scripts/modelo-referencia.json` actualizado y cierra este issue.',
+              '',
+              'Si no lo es, hay que revisarlo: `modelo.js`, `scripts/` y `supabase/` no se',
+              'editan desde Lovable (ver `LOVABLE_KNOWLEDGE.md`).',
+            ].join('\n');
+
+            const base = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `El modelo cambió en ${sha}`,
+              body: cuerpo,
+            };
+            // La etiqueta es un lujo: si no existe en el repo, el issue se abre igual.
+            try {
+              await github.rest.issues.create({ ...base, labels: ['modelo'] });
+            } catch (e) {
+              core.warning(`No se pudo etiquetar (${e.message}); se abre sin etiqueta.`);
+              await github.rest.issues.create(base);
+            }

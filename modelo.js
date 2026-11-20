@@ -6,8 +6,8 @@
 // cierra su ticket, así que lo que sale cada semana es lo que el equipo alcanza a cerrar.
 // Las etapas que no gobierna un ticket usan los días del Reverse Eng Model.
 // Los tiempos por etapa de HubSpot NO se usan: se mueven por lotes.
-(function (raiz) {
-  'use strict';
+// Módulo ES independiente: lo importan la app (src/) y scripts/sync-hubspot.mjs.
+// No depende de React, del navegador ni de Node.
 
   // entrada = {
   //   ritmos: [{id, cod, modo:'cola'|'proceso', ticket, equipo, dias, conversion}],
@@ -308,5 +308,4 @@
              horasEquipo: horasEquipo, horasTipo: horasTipo };
   }
 
-  raiz.NIKO_MODELO = { calcularPronostico: calcularPronostico, calcularMeta: calcularMeta };
-})(typeof globalThis !== 'undefined' ? globalThis : this);
+export { calcularPronostico, calcularMeta };

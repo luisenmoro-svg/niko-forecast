@@ -1,0 +1,45 @@
+// Definiciones de cada métrica, en lenguaje simple: qué es, cómo se calcula y qué
+// incluye. Se muestran en el ⓘ. Portadas tal cual del tablero estático.
+//
+// Regla de Paola: toda métrica, KPI y encabezado de columna lleva su ⓘ. No se
+// vuelven a poner párrafos explicativos largos en la página.
+
+export const DEF = {
+  goal: 'La meta del mes para el segmento elegido, de la tabla metas. Si ese mes no está cargado, se usa la meta por defecto de config.js.',
+  forecast: 'Sitios del mes que la capacidad actual alcanza a entregar: los que ya están instalados, más los que todavía tienen tiempo. Un sitio tiene tiempo si la cola más lenta de sus tickets abiertos (días de fila de su owner + el SLA que le queda) cabe en los días hábiles que faltan para su fecha de instalación.',
+  real: 'Sitios del mes que ya llegaron a una etapa marcada como instalada en etapas_deal.',
+  delta: 'Forecast menos Goal. Se arma de dos partes que suman el delta: la brecha de plan (sitios que ni siquiera tienen fecha en el mes) y la brecha de capacidad (comprometidos que no entran por fila y SLA).',
+  plan: 'Todos los sitios con fecha de instalación dentro del mes, estén instalados o no.',
+  abiertos: 'Tickets sin fecha de cierre en la foto más reciente. No incluye los que cuelgan solo de deals en etapa inactiva.',
+  vencidos: 'Tickets abiertos cuya edad en días hábiles ya pasó el SLA de su tipo.',
+  riesgo: 'Tickets abiertos que llegaron al 80 % de su SLA pero todavía no lo pasan.',
+  cumplimiento: 'De los tickets cerrados en los últimos 28 días, el porcentaje que cerró dentro de su SLA.',
+  t0: 'Sitios y kWp que había en la foto que elegiste como línea base, arriba en el control T0.',
+  cadena: 'Sitios y kWp en cada etapa del deal, de la foto más reciente, agrupados por sección del pipeline. Cada tarjeta indica cuánto cambió contra la foto T0.',
+  desdeT0: 'Cada columna es una foto semanal, con sitios y kWp lado a lado. El número pequeño es la diferencia contra la foto T0.',
+  sla: 'Días hábiles que el catálogo le da a ese tipo de ticket. 1 hora = 0.125 días, 1 día = 1. Vacío quiere decir que falta definirlo.',
+  edad: 'Días hábiles desde que se creó el ticket, sin contar fines de semana ni feriados, hasta su cierre o hasta hoy.',
+  edadMediana: 'La mitad de los tickets abiertos de ese tipo tiene menos edad que este número y la otra mitad más. En días hábiles.',
+  entraron28: 'Tickets de ese tipo creados en los últimos 28 días.',
+  salieron28: 'Tickets de ese tipo cerrados en los últimos 28 días.',
+  aTiempo: 'De los cerrados en los últimos 28 días, el porcentaje que cerró dentro de su SLA.',
+  horasFila: 'Horas de trabajo que representan los tickets abiertos de ese tipo, según el esfuerzo del catálogo.',
+  atraso: 'Días hábiles por encima del SLA.',
+  saturacion: 'Horas requeridas entre horas disponibles. Arriba de 100 % el equipo está saturado; arriba de 85 %, al límite.',
+  disponibles: 'FTE × % de foco × (jornada − horas de ausencia), sumado día por día en el horizonte elegido.',
+  requeridas: 'Horas de la fila abierta según el esfuerzo del catálogo, más lo que entra al ritmo de los últimos 28 días.',
+  foco: 'Parte de la jornada que esa persona dedica a tickets, de la tabla personas.',
+  ausencias: 'Horas que la persona no trabaja dentro del horizonte, de la tabla ausencias.',
+  leCaben: 'Cuántos tickets más, de su mezcla habitual, le caben antes de llegar al 100 % de utilización.',
+  diasCola: 'Días hábiles que tardaría en sacar su fila actual si no entrara nada nuevo.',
+  diasVaciar: 'Días hábiles hasta vaciar la fila contando lo que sigue entrando. «No se vacía» quiere decir que entra más de lo que sale.',
+  fueraForecast: 'Sitios con fecha de instalación este mes cuya cola más lenta es mayor que los días hábiles que faltan para instalar.',
+  diasRestantes: 'Días hábiles entre hoy y la fecha de instalación del sitio.',
+  porQue: 'El ticket que marca el cuello de botella y cuánto tiempo pide entre fila y SLA.',
+  ticketsInactivos: 'Tickets abiertos cuyos deals están todos en una etapa inactiva (Inviable, Dormant, Churned). No consumen capacidad: conviene cerrarlos.',
+  desfase: 'Sitios cuya salida de esta etapa cae después del fin del mes de su fecha de instalación comprometida. Es una APROXIMACIÓN: supone que dentro de la etapa los sitios avanzan en orden de fecha de instalación, los más urgentes primero, y que salen al ritmo que la etapa sostiene hoy. No considera lo que tarden las etapas siguientes.',
+  pideMeta: 'Horas por semana que exigiría cumplir la meta mensual, calculadas hacia atrás: desde las instalaciones que pide la meta se sube por la cadena dividiendo entre cada tasa de conversión, y cada sitio que pasa por una etapa consume el esfuerzo de sus tickets. Se compara contra las horas que cada equipo tiene hoy.',
+  prepararse: 'Dónde se va a juntar trabajo antes de que pase. Una ola es un grupo de sitios que hoy están en una etapa y que, al avanzar, caen sobre un paso que no da abasto. Se ordenan por los kWp que se quedan fuera. Es un pronóstico preliminar.',
+  cuellos: 'Semana a semana, las horas que pide la fila de cada equipo contra las horas que tiene. Un sitio sale de una etapa cuando se cierra su ticket, así que la velocidad de la cadena es la capacidad de quien cierra. Es un pronóstico preliminar.',
+  sinOwner: 'Tickets abiertos cuyo owner de HubSpot no está en la tabla personas, así que su trabajo no se le suma a nadie.',
+};

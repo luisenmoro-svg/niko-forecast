@@ -13,3 +13,7 @@ node_modules/
 
 # Scaffolding local de desarrollo
 .claude/
+
+# Build
+dist/
+*.tsbuildinfo

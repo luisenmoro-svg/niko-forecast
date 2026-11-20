@@ -3,6 +3,9 @@
 //   HUBSPOT_TOKEN=... SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/sync-hubspot.mjs
 // Node 20+ (usa fetch nativo). Sin dependencias.
 
+import { calcularPronostico } from '../modelo.js';
+import { CFG } from '../config.js';
+
 const env = process.env;
 const HUBSPOT_TOKEN = req('HUBSPOT_TOKEN');
 const SUPABASE_URL = req('SUPABASE_URL').replace(/\/$/, '');
@@ -193,9 +196,8 @@ async function main() {
 // ---------- Pronóstico base del día ----------
 // Usa modelo.js, la MISMA implementación que el dashboard. Sin los controles del simulador.
 async function guardarPronostico(hoy, deals) {
-  const cfg = await leerArchivo('../config.js', 'NIKO_CONFIG');
-  const modelo = await leerArchivo('../modelo.js', 'NIKO_MODELO');
-  if (!cfg || !cfg.ritmoEtapas || !modelo) { console.log('Sin config o modelo: no se guarda pronóstico.'); return; }
+  if (!CFG || !CFG.ritmoEtapas) { console.log('Sin config: no se guarda pronóstico.'); return; }
+  const cfg = CFG;
   const [catalogo, personas] = await Promise.all([
     sbGet('catalogo', 'tipo,esfuerzo_prod_h'),
     sbGet('personas', 'owner_id,equipo,fte,jornada_h,foco,activo'),
@@ -218,7 +220,7 @@ async function guardarPronostico(hoy, deals) {
     estado[r.id] = { sitios: ds.length, kwp: ds.reduce((a, d) => a + (Number(d.kwp) || 0), 0) };
   }
   // El guardado es el pronóstico base: sin entrada simulada ni ajustes.
-  const R = modelo.calcularPronostico({
+  const R = calcularPronostico({
     ritmos: cfg.ritmoEtapas, estado, capSemana, esfuerzo,
     nuevos: null, semanas: cfg.semanasPronostico || 10, ajustes: {},
   });
@@ -237,16 +239,6 @@ async function guardarPronostico(hoy, deals) {
   if (R.sinEsfuerzo.length) console.log(`Colas sin esfuerzo en el catálogo: ${R.sinEsfuerzo.join(', ')}`);
 }
 
-// Lee un archivo del repo que define un global y devuelve ese global.
-async function leerArchivo(ruta, global) {
-  const { readFile } = await import('node:fs/promises');
-  try {
-    const txt = await readFile(new URL(ruta, import.meta.url), 'utf8');
-    const caja = {};
-    new Function('window', 'globalThis', txt).call(caja, caja, caja);
-    return caja[global] || null;
-  } catch (e) { console.log(`No se pudo leer ${ruta}: ${e.message}`); return null; }
-}
 
 async function sbGet(tabla, cols) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${tabla}?select=${encodeURIComponent(cols)}`, {

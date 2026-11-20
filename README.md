@@ -1,14 +1,52 @@
 # Ticket System: capacidad y flujo
 
-Dashboard estático (un solo `index.html`) que lee de Supabase. Un workflow de GitHub Actions toma una foto de HubSpot dos veces al día y la guarda en Supabase; Vercel solo sirve la página.
+Aplicación **React + Vite + TypeScript + Tailwind** que lee de Supabase. Un workflow de
+GitHub Actions toma una foto de HubSpot dos veces al día y la guarda en Supabase.
 
 ```
-HubSpot ──(GitHub Actions, 7:00 y 13:00)──▶ Supabase ◀──(supabase-js + login)── index.html en Vercel
+HubSpot ──(GitHub Actions, 7:17 y 13:17)──▶ Supabase ◀──(supabase-js + login Google)── la app
                                               ▲
              catálogo, personas, ausencias, metas (Table Editor o importación del Tickets Manual)
 ```
 
 Sin configurar, la página abre con datos de ejemplo para que se pueda revisar el diseño.
+
+## Cómo correrlo
+
+```bash
+npm install
+cp .env.example .env     # pon la URL y la clave publishable de Supabase
+npm run dev
+```
+
+`npm run build` compila a `dist/`. `npm run typecheck` revisa los tipos.
+`npm run modelo:check` compara el modelo contra su resultado de referencia.
+
+### Variables de entorno
+
+| Variable | Dónde | Para qué |
+|---|---|---|
+| `VITE_SUPABASE_URL` | Lovable / Vercel / `.env` | URL del proyecto de Supabase |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Lovable / Vercel / `.env` | Clave pública; la seguridad la dan el login y RLS |
+
+Los secretos de GitHub Actions (`HUBSPOT_TOKEN`, `SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`) son otra cosa y **solo** viven en el repo, nunca en el código.
+
+## Estructura
+
+| Carpeta | Qué hay |
+|---|---|
+| `modelo.js` | Modelo de pronóstico. Única implementación: la usan la app y el sync |
+| `config.js` | Parámetros del tablero, sin credenciales |
+| `src/lib/*.js` | Núcleo de cálculo portado verbatim del tablero anterior (JS llano, a propósito) |
+| `src/componentes/`, `src/ui/` | Vistas en React |
+| `src/index.css` | Tokens `--hs-*` y clases de componente: el sistema visual de Niko |
+| `scripts/` | Sincronización con HubSpot y referencia del modelo |
+| `supabase/` | Esquema, RLS y datos iniciales |
+
+**No se editan desde Lovable:** `modelo.js`, `config.js`, `scripts/` ni `supabase/`.
+Un workflow guardián los vigila y abre un issue si el modelo cambia de resultado.
+Las reglas para pegar en el Knowledge de Lovable están en `LOVABLE_KNOWLEDGE.md`.
 
 ## Qué muestra
 

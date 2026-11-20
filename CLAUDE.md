@@ -4,7 +4,33 @@ Dashboard de **flujo, SLA y capacidad** del Ticket System de Niko.
 
 ## Arquitectura
 
-- **HTML estático** (`index.html`, un solo archivo) desplegado en **Vercel**, sin build.
+- **React + Vite + TypeScript + Tailwind** (20 nov 2026). El tablero se migró del HTML
+  estático de un solo archivo a la pila de **Lovable**, para que Paola pueda editarlo ahí.
+  `npm run dev` para trabajar, `npm run build` para compilar. **El mismo repo
+  `niko-forecast`**: Lovable sube directo a `main`.
+  - **El núcleo de cálculo se portó VERBATIM** y vive en `src/lib/*.js` (JavaScript llano,
+    no TypeScript): `construirModelo.js`, `pronostico.js`, `datos.js`, `fechas.js`. No se
+    reescribieron para que ninguna fórmula cambiara. `src/lib/nucleo.ts` es la única
+    frontera donde se afloja el tipado, a propósito.
+  - Lo nuevo —componentes, estado, paneles— sí es TypeScript: `src/componentes/`, `src/ui/`,
+    `src/estado.tsx`, `src/App.tsx`.
+  - El sistema visual sigue siendo CSS con tokens `--hs-*` en `src/index.css`, portado tal
+    cual. `tailwind.config.ts` solo expone esos tokens como utilidades; **no** se tradujo
+    el diseño a utilidades sueltas.
+  - **Verificado el 20 nov 2026**: con los datos de ejemplo, el tablero nuevo y el anterior
+    dan exactamente el mismo texto en las tres pantallas (14 + 236 + 116 líneas, cero
+    diferencias) y los 249 números clicables abren su panel sin un solo descuadre.
+- **Las credenciales de Supabase van en variables de entorno**, no en el código:
+  `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY` (ver `.env.example`). Sin ellas, el
+  tablero arranca con datos de ejemplo en vez de fallar.
+- **`modelo.js` y `config.js` son módulos ES** en la raíz, importados tanto por la app como
+  por `scripts/sync-hubspot.mjs`. Ya no se leen con `new Function`. Verificado: convertirlos
+  a ESM no cambió ni un número.
+- **Workflow guardián** (`.github/workflows/guardian-modelo.yml`): en cada push que toque
+  `modelo.js`, `config.js`, `scripts/` o `supabase/`, corre `scripts/modelo-referencia.mjs
+  --check` contra `scripts/modelo-referencia.json`. Si el resultado cambió, **abre un issue**
+  con el diff y el autor. No bloquea: Lovable sube directo a `main` y una protección de rama
+  lo rompería. Si el cambio es intencional, se regenera la referencia y se commitea.
 - Lee de **Supabase** con `supabase-js` + **login con Google** (proveedor OAuth de
   Supabase). El dashboard manda `hd=niko.mx` y, al volver, cierra la sesión si el correo
   no es de `@niko.mx`; los datos ya los protege RLS por dominio. **No se usa SMTP**: se
@@ -16,14 +42,20 @@ Dashboard de **flujo, SLA y capacidad** del Ticket System de Niko.
   toma la foto de HubSpot **dos veces al día** (7:17 y 13:17 CDMX; el minuto 17 evita que
   GitHub descarte el cron por caer en punto de hora) y la escribe en Supabase
   con la service role key.
-- `config.js` solo lleva datos públicos: URL de Supabase y **anon key**.
+- `config.js` ya no lleva credenciales: solo parámetros del tablero.
 
 ## Archivos clave
 
 | Archivo | Para qué |
 |---|---|
-| `index.html` | Todo el dashboard: fórmulas, vistas y estilos |
-| `config.js` | Configuración pública (URL + anon key, dominio, meta por defecto, `etapasPostInstalacion`) |
+| `src/lib/*.js` | Núcleo de cálculo portado verbatim: modelo de datos, pronóstico, carga, fechas |
+| `modelo.js` | Modelo de pronóstico: única implementación, la usan la app y el sync |
+| `src/componentes/`, `src/ui/` | Vistas en React (TypeScript) |
+| `src/index.css` | Sistema visual: tokens `--hs-*` y clases de componente |
+| `config.js` | Configuración del tablero, **sin credenciales** (dominio, meta por defecto, `ritmoEtapas`, `etapasPostInstalacion`…) |
+| `.env.example` | Las dos variables de Supabase que hay que definir |
+| `scripts/modelo-referencia.mjs` | Resultado de referencia del modelo, para el guardián |
+| `LOVABLE_KNOWLEDGE.md` | Reglas resumidas para pegar en el Knowledge de Lovable |
 | `supabase/schema.sql` | Esquema completo + RLS + datos iniciales |
 | `scripts/sync-hubspot.mjs` | Sincronización HubSpot → Supabase |
 | `.github/workflows/sync.yml` | Agenda de la sincronización |
@@ -166,10 +198,10 @@ Aplican a toda vista nueva, no solo a las existentes.
 - **El pronóstico base se guarda a diario** en la tabla `pronosticos` desde el workflow,
   sin los controles del simulador. Cuando llega la foto real, la tabla de T0 muestra el
   pronóstico junto al dato.
-- **Una sola implementación del modelo**: `modelo.js` en la raíz, que cargan tanto
-  `index.html` (con `<script>`) como `scripts/sync-hubspot.mjs` (leyendo el archivo).
-  No depende del navegador ni de Node. Verificado: con las mismas entradas, los dos
-  entornos devuelven exactamente lo mismo.
+- **Una sola implementación del modelo**: `modelo.js` en la raíz, módulo ES que importan
+  tanto la app (`src/lib/pronostico.js`) como `scripts/sync-hubspot.mjs`. No depende de
+  React, del navegador ni de Node. Verificado: con las mismas entradas, los dos entornos
+  devuelven exactamente lo mismo, y el guardián lo comprueba en cada push.
 - **Sin dos fotos separadas por 5 días no se puede medir el ritmo de entrada.** En ese
   caso el pronóstico lo dice en rojo y usa el ritmo de la meta; **nunca cero en silencio**.
 - **Para calibrar esfuerzo y ritmo de entrada se usa `tickets_snapshot`**, no las fotos

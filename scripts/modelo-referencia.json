@@ -1,0 +1,2205 @@
+{
+  "version": 1,
+  "pronostico": {
+    "semanas": [
+      {
+        "etiqueta": "1S",
+        "sitios": 243,
+        "kwp": 3639,
+        "instalados": {
+          "sitios": 53.5,
+          "kwp": 802
+        },
+        "porEtapa": {
+          "267654734": {
+            "sitios": 27.8,
+            "kwp": 417
+          },
+          "267654738": {
+            "sitios": 0,
+            "kwp": 0
+          },
+          "268239144": {
+            "sitios": 8,
+            "kwp": 120
+          },
+          "1020227700": {
+            "sitios": 72.5,
+            "kwp": 1088
+          },
+          "1021672592": {
+            "sitios": 4.3,
+            "kwp": 65
+          },
+          "1036112428": {
+            "sitios": 40.3,
+            "kwp": 604
+          },
+          "1036112429": {
+            "sitios": 40,
+            "kwp": 600
+          },
+          "1036112433": {
+            "sitios": 9.5,
+            "kwp": 142
+          },
+          "1418018399": {
+            "sitios": 40.2,
+            "kwp": 603
+          }
+        },
+        "traza": {
+          "267654734": {
+            "cod": "2.13",
+            "inicio": 59,
+            "llegaron": 8.8,
+            "salieron": 40,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 27.8,
+            "conversion": 1,
+            "deFuentes": [
+              {
+                "cod": "2.12",
+                "sitios": 8.8
+              }
+            ],
+            "modo": "cola"
+          },
+          "267654738": {
+            "cod": "2.04",
+            "inicio": 24,
+            "llegaron": 0,
+            "salieron": 24,
+            "perdidos": 4.8,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.8,
+            "deFuentes": [],
+            "modo": "proceso"
+          },
+          "268239144": {
+            "cod": "2.02",
+            "inicio": 10,
+            "llegaron": 0,
+            "salieron": 10,
+            "perdidos": 3.4,
+            "nuevos": 8,
+            "fin": 8,
+            "conversion": 0.66,
+            "deFuentes": [],
+            "modo": "cola"
+          },
+          "1020227700": {
+            "cod": "2.12",
+            "inicio": 52,
+            "llegaron": 40.5,
+            "salieron": 20,
+            "perdidos": 11.2,
+            "nuevos": 0,
+            "fin": 72.5,
+            "conversion": 0.44,
+            "deFuentes": [
+              {
+                "cod": "2.11",
+                "sitios": 40.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1021672592": {
+            "cod": "2.03",
+            "inicio": 17,
+            "llegaron": 4.336,
+            "salieron": 17,
+            "perdidos": 14.96,
+            "nuevos": 0,
+            "fin": 4.3,
+            "conversion": 0.12,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 4.3
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112428": {
+            "cod": "2.10",
+            "inicio": 38,
+            "llegaron": 12.804,
+            "salieron": 10.526,
+            "perdidos": 1.053,
+            "nuevos": 0,
+            "fin": 40.3,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 2.3
+              },
+              {
+                "cod": "2.03",
+                "sitios": 2
+              },
+              {
+                "cod": "2.09",
+                "sitios": 8.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112429": {
+            "cod": "2.14",
+            "inicio": 66,
+            "llegaron": 40,
+            "salieron": 66,
+            "perdidos": 12.54,
+            "nuevos": 0,
+            "fin": 40,
+            "conversion": 0.81,
+            "deFuentes": [
+              {
+                "cod": "2.13",
+                "sitios": 40
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1036112433": {
+            "cod": "2.11",
+            "inicio": 45,
+            "llegaron": 9.474,
+            "salieron": 45,
+            "perdidos": 4.5,
+            "nuevos": 0,
+            "fin": 9.5,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.10",
+                "sitios": 9.5
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1418018399": {
+            "cod": "2.09",
+            "inicio": 31,
+            "llegaron": 19.2,
+            "salieron": 10,
+            "perdidos": 1.5,
+            "nuevos": 0,
+            "fin": 40.2,
+            "conversion": 0.85,
+            "deFuentes": [
+              {
+                "cod": "2.04",
+                "sitios": 19.2
+              }
+            ],
+            "modo": "cola"
+          }
+        }
+      },
+      {
+        "etiqueta": "2S",
+        "sitios": 189,
+        "kwp": 2840,
+        "instalados": {
+          "sitios": 32.4,
+          "kwp": 486
+        },
+        "porEtapa": {
+          "267654734": {
+            "sitios": 8.8,
+            "kwp": 132
+          },
+          "267654738": {
+            "sitios": 0,
+            "kwp": 0
+          },
+          "268239144": {
+            "sitios": 8,
+            "kwp": 120
+          },
+          "1020227700": {
+            "sitios": 61,
+            "kwp": 915
+          },
+          "1021672592": {
+            "sitios": 3.5,
+            "kwp": 52
+          },
+          "1036112428": {
+            "sitios": 40.6,
+            "kwp": 609
+          },
+          "1036112429": {
+            "sitios": 27.8,
+            "kwp": 417
+          },
+          "1036112433": {
+            "sitios": 9.5,
+            "kwp": 142
+          },
+          "1418018399": {
+            "sitios": 30.2,
+            "kwp": 453
+          }
+        },
+        "traza": {
+          "267654734": {
+            "cod": "2.13",
+            "inicio": 27.8,
+            "llegaron": 8.8,
+            "salieron": 27.8,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 8.8,
+            "conversion": 1,
+            "deFuentes": [
+              {
+                "cod": "2.12",
+                "sitios": 8.8
+              }
+            ],
+            "modo": "cola"
+          },
+          "267654738": {
+            "cod": "2.04",
+            "inicio": 0,
+            "llegaron": 0,
+            "salieron": 0,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.8,
+            "deFuentes": [],
+            "modo": "vacio"
+          },
+          "268239144": {
+            "cod": "2.02",
+            "inicio": 8,
+            "llegaron": 0,
+            "salieron": 8,
+            "perdidos": 2.72,
+            "nuevos": 8,
+            "fin": 8,
+            "conversion": 0.66,
+            "deFuentes": [],
+            "modo": "cola"
+          },
+          "1020227700": {
+            "cod": "2.12",
+            "inicio": 72.5,
+            "llegaron": 8.526,
+            "salieron": 20,
+            "perdidos": 11.2,
+            "nuevos": 0,
+            "fin": 61,
+            "conversion": 0.44,
+            "deFuentes": [
+              {
+                "cod": "2.11",
+                "sitios": 8.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1021672592": {
+            "cod": "2.03",
+            "inicio": 4.336,
+            "llegaron": 3.469,
+            "salieron": 4.336,
+            "perdidos": 3.816,
+            "nuevos": 0,
+            "fin": 3.5,
+            "conversion": 0.12,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 3.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112428": {
+            "cod": "2.10",
+            "inicio": 40.277,
+            "llegaron": 10.831,
+            "salieron": 10.526,
+            "perdidos": 1.053,
+            "nuevos": 0,
+            "fin": 40.6,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 1.8
+              },
+              {
+                "cod": "2.03",
+                "sitios": 0.5
+              },
+              {
+                "cod": "2.09",
+                "sitios": 8.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112429": {
+            "cod": "2.14",
+            "inicio": 40,
+            "llegaron": 27.8,
+            "salieron": 40,
+            "perdidos": 7.6,
+            "nuevos": 0,
+            "fin": 27.8,
+            "conversion": 0.81,
+            "deFuentes": [
+              {
+                "cod": "2.13",
+                "sitios": 27.8
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1036112433": {
+            "cod": "2.11",
+            "inicio": 9.474,
+            "llegaron": 9.474,
+            "salieron": 9.474,
+            "perdidos": 0.947,
+            "nuevos": 0,
+            "fin": 9.5,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.10",
+                "sitios": 9.5
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1418018399": {
+            "cod": "2.09",
+            "inicio": 40.2,
+            "llegaron": 0,
+            "salieron": 10,
+            "perdidos": 1.5,
+            "nuevos": 0,
+            "fin": 30.2,
+            "conversion": 0.85,
+            "deFuentes": [],
+            "modo": "cola"
+          }
+        }
+      },
+      {
+        "etiqueta": "3S",
+        "sitios": 149,
+        "kwp": 2236,
+        "instalados": {
+          "sitios": 22.5,
+          "kwp": 338
+        },
+        "porEtapa": {
+          "267654734": {
+            "sitios": 8.8,
+            "kwp": 132
+          },
+          "267654738": {
+            "sitios": 0,
+            "kwp": 0
+          },
+          "268239144": {
+            "sitios": 8,
+            "kwp": 120
+          },
+          "1020227700": {
+            "sitios": 49.6,
+            "kwp": 743
+          },
+          "1021672592": {
+            "sitios": 3.5,
+            "kwp": 52
+          },
+          "1036112428": {
+            "sitios": 40.8,
+            "kwp": 612
+          },
+          "1036112429": {
+            "sitios": 8.8,
+            "kwp": 132
+          },
+          "1036112433": {
+            "sitios": 9.5,
+            "kwp": 142
+          },
+          "1418018399": {
+            "sitios": 20.2,
+            "kwp": 303
+          }
+        },
+        "traza": {
+          "267654734": {
+            "cod": "2.13",
+            "inicio": 8.8,
+            "llegaron": 8.8,
+            "salieron": 8.8,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 8.8,
+            "conversion": 1,
+            "deFuentes": [
+              {
+                "cod": "2.12",
+                "sitios": 8.8
+              }
+            ],
+            "modo": "cola"
+          },
+          "267654738": {
+            "cod": "2.04",
+            "inicio": 0,
+            "llegaron": 0,
+            "salieron": 0,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.8,
+            "deFuentes": [],
+            "modo": "vacio"
+          },
+          "268239144": {
+            "cod": "2.02",
+            "inicio": 8,
+            "llegaron": 0,
+            "salieron": 8,
+            "perdidos": 2.72,
+            "nuevos": 8,
+            "fin": 8,
+            "conversion": 0.66,
+            "deFuentes": [],
+            "modo": "cola"
+          },
+          "1020227700": {
+            "cod": "2.12",
+            "inicio": 61.026,
+            "llegaron": 8.526,
+            "salieron": 20,
+            "perdidos": 11.2,
+            "nuevos": 0,
+            "fin": 49.6,
+            "conversion": 0.44,
+            "deFuentes": [
+              {
+                "cod": "2.11",
+                "sitios": 8.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1021672592": {
+            "cod": "2.03",
+            "inicio": 3.469,
+            "llegaron": 3.469,
+            "salieron": 3.469,
+            "perdidos": 3.053,
+            "nuevos": 0,
+            "fin": 3.5,
+            "conversion": 0.12,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 3.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112428": {
+            "cod": "2.10",
+            "inicio": 40.583,
+            "llegaron": 10.727,
+            "salieron": 10.526,
+            "perdidos": 1.053,
+            "nuevos": 0,
+            "fin": 40.8,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 1.8
+              },
+              {
+                "cod": "2.03",
+                "sitios": 0.4
+              },
+              {
+                "cod": "2.09",
+                "sitios": 8.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112429": {
+            "cod": "2.14",
+            "inicio": 27.8,
+            "llegaron": 8.8,
+            "salieron": 27.8,
+            "perdidos": 5.282,
+            "nuevos": 0,
+            "fin": 8.8,
+            "conversion": 0.81,
+            "deFuentes": [
+              {
+                "cod": "2.13",
+                "sitios": 8.8
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1036112433": {
+            "cod": "2.11",
+            "inicio": 9.474,
+            "llegaron": 9.474,
+            "salieron": 9.474,
+            "perdidos": 0.947,
+            "nuevos": 0,
+            "fin": 9.5,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.10",
+                "sitios": 9.5
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1418018399": {
+            "cod": "2.09",
+            "inicio": 30.2,
+            "llegaron": 0,
+            "salieron": 10,
+            "perdidos": 1.5,
+            "nuevos": 0,
+            "fin": 20.2,
+            "conversion": 0.85,
+            "deFuentes": [],
+            "modo": "cola"
+          }
+        }
+      },
+      {
+        "etiqueta": "4S",
+        "sitios": 128,
+        "kwp": 1917,
+        "instalados": {
+          "sitios": 7.1,
+          "kwp": 107
+        },
+        "porEtapa": {
+          "267654734": {
+            "sitios": 8.8,
+            "kwp": 132
+          },
+          "267654738": {
+            "sitios": 0,
+            "kwp": 0
+          },
+          "268239144": {
+            "sitios": 8,
+            "kwp": 120
+          },
+          "1020227700": {
+            "sitios": 38.1,
+            "kwp": 571
+          },
+          "1021672592": {
+            "sitios": 3.5,
+            "kwp": 52
+          },
+          "1036112428": {
+            "sitios": 41,
+            "kwp": 615
+          },
+          "1036112429": {
+            "sitios": 8.8,
+            "kwp": 132
+          },
+          "1036112433": {
+            "sitios": 9.5,
+            "kwp": 142
+          },
+          "1418018399": {
+            "sitios": 10.2,
+            "kwp": 153
+          }
+        },
+        "traza": {
+          "267654734": {
+            "cod": "2.13",
+            "inicio": 8.8,
+            "llegaron": 8.8,
+            "salieron": 8.8,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 8.8,
+            "conversion": 1,
+            "deFuentes": [
+              {
+                "cod": "2.12",
+                "sitios": 8.8
+              }
+            ],
+            "modo": "cola"
+          },
+          "267654738": {
+            "cod": "2.04",
+            "inicio": 0,
+            "llegaron": 0,
+            "salieron": 0,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.8,
+            "deFuentes": [],
+            "modo": "vacio"
+          },
+          "268239144": {
+            "cod": "2.02",
+            "inicio": 8,
+            "llegaron": 0,
+            "salieron": 8,
+            "perdidos": 2.72,
+            "nuevos": 8,
+            "fin": 8,
+            "conversion": 0.66,
+            "deFuentes": [],
+            "modo": "cola"
+          },
+          "1020227700": {
+            "cod": "2.12",
+            "inicio": 49.553,
+            "llegaron": 8.526,
+            "salieron": 20,
+            "perdidos": 11.2,
+            "nuevos": 0,
+            "fin": 38.1,
+            "conversion": 0.44,
+            "deFuentes": [
+              {
+                "cod": "2.11",
+                "sitios": 8.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1021672592": {
+            "cod": "2.03",
+            "inicio": 3.469,
+            "llegaron": 3.469,
+            "salieron": 3.469,
+            "perdidos": 3.053,
+            "nuevos": 0,
+            "fin": 3.5,
+            "conversion": 0.12,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 3.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112428": {
+            "cod": "2.10",
+            "inicio": 40.784,
+            "llegaron": 10.727,
+            "salieron": 10.526,
+            "perdidos": 1.053,
+            "nuevos": 0,
+            "fin": 41,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 1.8
+              },
+              {
+                "cod": "2.03",
+                "sitios": 0.4
+              },
+              {
+                "cod": "2.09",
+                "sitios": 8.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112429": {
+            "cod": "2.14",
+            "inicio": 8.8,
+            "llegaron": 8.8,
+            "salieron": 8.8,
+            "perdidos": 1.672,
+            "nuevos": 0,
+            "fin": 8.8,
+            "conversion": 0.81,
+            "deFuentes": [
+              {
+                "cod": "2.13",
+                "sitios": 8.8
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1036112433": {
+            "cod": "2.11",
+            "inicio": 9.474,
+            "llegaron": 9.474,
+            "salieron": 9.474,
+            "perdidos": 0.947,
+            "nuevos": 0,
+            "fin": 9.5,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.10",
+                "sitios": 9.5
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1418018399": {
+            "cod": "2.09",
+            "inicio": 20.2,
+            "llegaron": 0,
+            "salieron": 10,
+            "perdidos": 1.5,
+            "nuevos": 0,
+            "fin": 10.2,
+            "conversion": 0.85,
+            "deFuentes": [],
+            "modo": "cola"
+          }
+        }
+      },
+      {
+        "etiqueta": "5S",
+        "sitios": 107,
+        "kwp": 1598,
+        "instalados": {
+          "sitios": 7.1,
+          "kwp": 107
+        },
+        "porEtapa": {
+          "267654734": {
+            "sitios": 8.8,
+            "kwp": 132
+          },
+          "267654738": {
+            "sitios": 0,
+            "kwp": 0
+          },
+          "268239144": {
+            "sitios": 8,
+            "kwp": 120
+          },
+          "1020227700": {
+            "sitios": 26.6,
+            "kwp": 399
+          },
+          "1021672592": {
+            "sitios": 3.5,
+            "kwp": 52
+          },
+          "1036112428": {
+            "sitios": 41.2,
+            "kwp": 618
+          },
+          "1036112429": {
+            "sitios": 8.8,
+            "kwp": 132
+          },
+          "1036112433": {
+            "sitios": 9.5,
+            "kwp": 142
+          },
+          "1418018399": {
+            "sitios": 0.2,
+            "kwp": 3
+          }
+        },
+        "traza": {
+          "267654734": {
+            "cod": "2.13",
+            "inicio": 8.8,
+            "llegaron": 8.8,
+            "salieron": 8.8,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 8.8,
+            "conversion": 1,
+            "deFuentes": [
+              {
+                "cod": "2.12",
+                "sitios": 8.8
+              }
+            ],
+            "modo": "cola"
+          },
+          "267654738": {
+            "cod": "2.04",
+            "inicio": 0,
+            "llegaron": 0,
+            "salieron": 0,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.8,
+            "deFuentes": [],
+            "modo": "vacio"
+          },
+          "268239144": {
+            "cod": "2.02",
+            "inicio": 8,
+            "llegaron": 0,
+            "salieron": 8,
+            "perdidos": 2.72,
+            "nuevos": 8,
+            "fin": 8,
+            "conversion": 0.66,
+            "deFuentes": [],
+            "modo": "cola"
+          },
+          "1020227700": {
+            "cod": "2.12",
+            "inicio": 38.079,
+            "llegaron": 8.526,
+            "salieron": 20,
+            "perdidos": 11.2,
+            "nuevos": 0,
+            "fin": 26.6,
+            "conversion": 0.44,
+            "deFuentes": [
+              {
+                "cod": "2.11",
+                "sitios": 8.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1021672592": {
+            "cod": "2.03",
+            "inicio": 3.469,
+            "llegaron": 3.469,
+            "salieron": 3.469,
+            "perdidos": 3.053,
+            "nuevos": 0,
+            "fin": 3.5,
+            "conversion": 0.12,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 3.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112428": {
+            "cod": "2.10",
+            "inicio": 40.985,
+            "llegaron": 10.727,
+            "salieron": 10.526,
+            "perdidos": 1.053,
+            "nuevos": 0,
+            "fin": 41.2,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 1.8
+              },
+              {
+                "cod": "2.03",
+                "sitios": 0.4
+              },
+              {
+                "cod": "2.09",
+                "sitios": 8.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112429": {
+            "cod": "2.14",
+            "inicio": 8.8,
+            "llegaron": 8.8,
+            "salieron": 8.8,
+            "perdidos": 1.672,
+            "nuevos": 0,
+            "fin": 8.8,
+            "conversion": 0.81,
+            "deFuentes": [
+              {
+                "cod": "2.13",
+                "sitios": 8.8
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1036112433": {
+            "cod": "2.11",
+            "inicio": 9.474,
+            "llegaron": 9.474,
+            "salieron": 9.474,
+            "perdidos": 0.947,
+            "nuevos": 0,
+            "fin": 9.5,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.10",
+                "sitios": 9.5
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1418018399": {
+            "cod": "2.09",
+            "inicio": 10.2,
+            "llegaron": 0,
+            "salieron": 10,
+            "perdidos": 1.5,
+            "nuevos": 0,
+            "fin": 0.2,
+            "conversion": 0.85,
+            "deFuentes": [],
+            "modo": "cola"
+          }
+        }
+      },
+      {
+        "etiqueta": "6S",
+        "sitios": 87,
+        "kwp": 1301,
+        "instalados": {
+          "sitios": 7.1,
+          "kwp": 107
+        },
+        "porEtapa": {
+          "267654734": {
+            "sitios": 8.8,
+            "kwp": 132
+          },
+          "267654738": {
+            "sitios": 0,
+            "kwp": 0
+          },
+          "268239144": {
+            "sitios": 8,
+            "kwp": 120
+          },
+          "1020227700": {
+            "sitios": 15.1,
+            "kwp": 227
+          },
+          "1021672592": {
+            "sitios": 3.5,
+            "kwp": 52
+          },
+          "1036112428": {
+            "sitios": 33.1,
+            "kwp": 496
+          },
+          "1036112429": {
+            "sitios": 8.8,
+            "kwp": 132
+          },
+          "1036112433": {
+            "sitios": 9.5,
+            "kwp": 142
+          },
+          "1418018399": {
+            "sitios": 0,
+            "kwp": 0
+          }
+        },
+        "traza": {
+          "267654734": {
+            "cod": "2.13",
+            "inicio": 8.8,
+            "llegaron": 8.8,
+            "salieron": 8.8,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 8.8,
+            "conversion": 1,
+            "deFuentes": [
+              {
+                "cod": "2.12",
+                "sitios": 8.8
+              }
+            ],
+            "modo": "cola"
+          },
+          "267654738": {
+            "cod": "2.04",
+            "inicio": 0,
+            "llegaron": 0,
+            "salieron": 0,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.8,
+            "deFuentes": [],
+            "modo": "vacio"
+          },
+          "268239144": {
+            "cod": "2.02",
+            "inicio": 8,
+            "llegaron": 0,
+            "salieron": 8,
+            "perdidos": 2.72,
+            "nuevos": 8,
+            "fin": 8,
+            "conversion": 0.66,
+            "deFuentes": [],
+            "modo": "cola"
+          },
+          "1020227700": {
+            "cod": "2.12",
+            "inicio": 26.605,
+            "llegaron": 8.526,
+            "salieron": 20,
+            "perdidos": 11.2,
+            "nuevos": 0,
+            "fin": 15.1,
+            "conversion": 0.44,
+            "deFuentes": [
+              {
+                "cod": "2.11",
+                "sitios": 8.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1021672592": {
+            "cod": "2.03",
+            "inicio": 3.469,
+            "llegaron": 3.469,
+            "salieron": 3.469,
+            "perdidos": 3.053,
+            "nuevos": 0,
+            "fin": 3.5,
+            "conversion": 0.12,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 3.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112428": {
+            "cod": "2.10",
+            "inicio": 41.186,
+            "llegaron": 2.397,
+            "salieron": 10.526,
+            "perdidos": 1.053,
+            "nuevos": 0,
+            "fin": 33.1,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 1.8
+              },
+              {
+                "cod": "2.03",
+                "sitios": 0.4
+              },
+              {
+                "cod": "2.09",
+                "sitios": 0.2
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112429": {
+            "cod": "2.14",
+            "inicio": 8.8,
+            "llegaron": 8.8,
+            "salieron": 8.8,
+            "perdidos": 1.672,
+            "nuevos": 0,
+            "fin": 8.8,
+            "conversion": 0.81,
+            "deFuentes": [
+              {
+                "cod": "2.13",
+                "sitios": 8.8
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1036112433": {
+            "cod": "2.11",
+            "inicio": 9.474,
+            "llegaron": 9.474,
+            "salieron": 9.474,
+            "perdidos": 0.947,
+            "nuevos": 0,
+            "fin": 9.5,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.10",
+                "sitios": 9.5
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1418018399": {
+            "cod": "2.09",
+            "inicio": 0.2,
+            "llegaron": 0,
+            "salieron": 0.2,
+            "perdidos": 0.03,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.85,
+            "deFuentes": [],
+            "modo": "cola"
+          }
+        }
+      },
+      {
+        "etiqueta": "7S",
+        "sitios": 70,
+        "kwp": 1045,
+        "instalados": {
+          "sitios": 7.1,
+          "kwp": 107
+        },
+        "porEtapa": {
+          "267654734": {
+            "sitios": 6.7,
+            "kwp": 100
+          },
+          "267654738": {
+            "sitios": 0,
+            "kwp": 0
+          },
+          "268239144": {
+            "sitios": 8,
+            "kwp": 120
+          },
+          "1020227700": {
+            "sitios": 8.5,
+            "kwp": 128
+          },
+          "1021672592": {
+            "sitios": 3.5,
+            "kwp": 52
+          },
+          "1036112428": {
+            "sitios": 24.8,
+            "kwp": 371
+          },
+          "1036112429": {
+            "sitios": 8.8,
+            "kwp": 132
+          },
+          "1036112433": {
+            "sitios": 9.5,
+            "kwp": 142
+          },
+          "1418018399": {
+            "sitios": 0,
+            "kwp": 0
+          }
+        },
+        "traza": {
+          "267654734": {
+            "cod": "2.13",
+            "inicio": 8.8,
+            "llegaron": 6.658,
+            "salieron": 8.8,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 6.7,
+            "conversion": 1,
+            "deFuentes": [
+              {
+                "cod": "2.12",
+                "sitios": 6.7
+              }
+            ],
+            "modo": "cola"
+          },
+          "267654738": {
+            "cod": "2.04",
+            "inicio": 0,
+            "llegaron": 0,
+            "salieron": 0,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.8,
+            "deFuentes": [],
+            "modo": "vacio"
+          },
+          "268239144": {
+            "cod": "2.02",
+            "inicio": 8,
+            "llegaron": 0,
+            "salieron": 8,
+            "perdidos": 2.72,
+            "nuevos": 8,
+            "fin": 8,
+            "conversion": 0.66,
+            "deFuentes": [],
+            "modo": "cola"
+          },
+          "1020227700": {
+            "cod": "2.12",
+            "inicio": 15.132,
+            "llegaron": 8.526,
+            "salieron": 15.132,
+            "perdidos": 8.474,
+            "nuevos": 0,
+            "fin": 8.5,
+            "conversion": 0.44,
+            "deFuentes": [
+              {
+                "cod": "2.11",
+                "sitios": 8.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1021672592": {
+            "cod": "2.03",
+            "inicio": 3.469,
+            "llegaron": 3.469,
+            "salieron": 3.469,
+            "perdidos": 3.053,
+            "nuevos": 0,
+            "fin": 3.5,
+            "conversion": 0.12,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 3.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112428": {
+            "cod": "2.10",
+            "inicio": 33.057,
+            "llegaron": 2.227,
+            "salieron": 10.526,
+            "perdidos": 1.053,
+            "nuevos": 0,
+            "fin": 24.8,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 1.8
+              },
+              {
+                "cod": "2.03",
+                "sitios": 0.4
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112429": {
+            "cod": "2.14",
+            "inicio": 8.8,
+            "llegaron": 8.8,
+            "salieron": 8.8,
+            "perdidos": 1.672,
+            "nuevos": 0,
+            "fin": 8.8,
+            "conversion": 0.81,
+            "deFuentes": [
+              {
+                "cod": "2.13",
+                "sitios": 8.8
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1036112433": {
+            "cod": "2.11",
+            "inicio": 9.474,
+            "llegaron": 9.474,
+            "salieron": 9.474,
+            "perdidos": 0.947,
+            "nuevos": 0,
+            "fin": 9.5,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.10",
+                "sitios": 9.5
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1418018399": {
+            "cod": "2.09",
+            "inicio": 0,
+            "llegaron": 0,
+            "salieron": 0,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.85,
+            "deFuentes": [],
+            "modo": "vacio"
+          }
+        }
+      },
+      {
+        "etiqueta": "8S",
+        "sitios": 56,
+        "kwp": 845,
+        "instalados": {
+          "sitios": 7.1,
+          "kwp": 107
+        },
+        "porEtapa": {
+          "267654734": {
+            "sitios": 3.8,
+            "kwp": 56
+          },
+          "267654738": {
+            "sitios": 0,
+            "kwp": 0
+          },
+          "268239144": {
+            "sitios": 8,
+            "kwp": 120
+          },
+          "1020227700": {
+            "sitios": 8.5,
+            "kwp": 128
+          },
+          "1021672592": {
+            "sitios": 3.5,
+            "kwp": 52
+          },
+          "1036112428": {
+            "sitios": 16.5,
+            "kwp": 247
+          },
+          "1036112429": {
+            "sitios": 6.7,
+            "kwp": 100
+          },
+          "1036112433": {
+            "sitios": 9.5,
+            "kwp": 142
+          },
+          "1418018399": {
+            "sitios": 0,
+            "kwp": 0
+          }
+        },
+        "traza": {
+          "267654734": {
+            "cod": "2.13",
+            "inicio": 6.658,
+            "llegaron": 3.752,
+            "salieron": 6.658,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 3.8,
+            "conversion": 1,
+            "deFuentes": [
+              {
+                "cod": "2.12",
+                "sitios": 3.8
+              }
+            ],
+            "modo": "cola"
+          },
+          "267654738": {
+            "cod": "2.04",
+            "inicio": 0,
+            "llegaron": 0,
+            "salieron": 0,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.8,
+            "deFuentes": [],
+            "modo": "vacio"
+          },
+          "268239144": {
+            "cod": "2.02",
+            "inicio": 8,
+            "llegaron": 0,
+            "salieron": 8,
+            "perdidos": 2.72,
+            "nuevos": 8,
+            "fin": 8,
+            "conversion": 0.66,
+            "deFuentes": [],
+            "modo": "cola"
+          },
+          "1020227700": {
+            "cod": "2.12",
+            "inicio": 8.526,
+            "llegaron": 8.526,
+            "salieron": 8.526,
+            "perdidos": 4.775,
+            "nuevos": 0,
+            "fin": 8.5,
+            "conversion": 0.44,
+            "deFuentes": [
+              {
+                "cod": "2.11",
+                "sitios": 8.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1021672592": {
+            "cod": "2.03",
+            "inicio": 3.469,
+            "llegaron": 3.469,
+            "salieron": 3.469,
+            "perdidos": 3.053,
+            "nuevos": 0,
+            "fin": 3.5,
+            "conversion": 0.12,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 3.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112428": {
+            "cod": "2.10",
+            "inicio": 24.758,
+            "llegaron": 2.227,
+            "salieron": 10.526,
+            "perdidos": 1.053,
+            "nuevos": 0,
+            "fin": 16.5,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 1.8
+              },
+              {
+                "cod": "2.03",
+                "sitios": 0.4
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112429": {
+            "cod": "2.14",
+            "inicio": 8.8,
+            "llegaron": 6.658,
+            "salieron": 8.8,
+            "perdidos": 1.672,
+            "nuevos": 0,
+            "fin": 6.7,
+            "conversion": 0.81,
+            "deFuentes": [
+              {
+                "cod": "2.13",
+                "sitios": 6.7
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1036112433": {
+            "cod": "2.11",
+            "inicio": 9.474,
+            "llegaron": 9.474,
+            "salieron": 9.474,
+            "perdidos": 0.947,
+            "nuevos": 0,
+            "fin": 9.5,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.10",
+                "sitios": 9.5
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1418018399": {
+            "cod": "2.09",
+            "inicio": 0,
+            "llegaron": 0,
+            "salieron": 0,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.85,
+            "deFuentes": [],
+            "modo": "vacio"
+          }
+        }
+      },
+      {
+        "etiqueta": "9S",
+        "sitios": 45,
+        "kwp": 677,
+        "instalados": {
+          "sitios": 5.4,
+          "kwp": 81
+        },
+        "porEtapa": {
+          "267654734": {
+            "sitios": 3.8,
+            "kwp": 56
+          },
+          "267654738": {
+            "sitios": 0,
+            "kwp": 0
+          },
+          "268239144": {
+            "sitios": 8,
+            "kwp": 120
+          },
+          "1020227700": {
+            "sitios": 8.5,
+            "kwp": 128
+          },
+          "1021672592": {
+            "sitios": 3.5,
+            "kwp": 52
+          },
+          "1036112428": {
+            "sitios": 8.2,
+            "kwp": 122
+          },
+          "1036112429": {
+            "sitios": 3.8,
+            "kwp": 56
+          },
+          "1036112433": {
+            "sitios": 9.5,
+            "kwp": 142
+          },
+          "1418018399": {
+            "sitios": 0,
+            "kwp": 0
+          }
+        },
+        "traza": {
+          "267654734": {
+            "cod": "2.13",
+            "inicio": 3.752,
+            "llegaron": 3.752,
+            "salieron": 3.752,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 3.8,
+            "conversion": 1,
+            "deFuentes": [
+              {
+                "cod": "2.12",
+                "sitios": 3.8
+              }
+            ],
+            "modo": "cola"
+          },
+          "267654738": {
+            "cod": "2.04",
+            "inicio": 0,
+            "llegaron": 0,
+            "salieron": 0,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.8,
+            "deFuentes": [],
+            "modo": "vacio"
+          },
+          "268239144": {
+            "cod": "2.02",
+            "inicio": 8,
+            "llegaron": 0,
+            "salieron": 8,
+            "perdidos": 2.72,
+            "nuevos": 8,
+            "fin": 8,
+            "conversion": 0.66,
+            "deFuentes": [],
+            "modo": "cola"
+          },
+          "1020227700": {
+            "cod": "2.12",
+            "inicio": 8.526,
+            "llegaron": 8.526,
+            "salieron": 8.526,
+            "perdidos": 4.775,
+            "nuevos": 0,
+            "fin": 8.5,
+            "conversion": 0.44,
+            "deFuentes": [
+              {
+                "cod": "2.11",
+                "sitios": 8.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1021672592": {
+            "cod": "2.03",
+            "inicio": 3.469,
+            "llegaron": 3.469,
+            "salieron": 3.469,
+            "perdidos": 3.053,
+            "nuevos": 0,
+            "fin": 3.5,
+            "conversion": 0.12,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 3.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112428": {
+            "cod": "2.10",
+            "inicio": 16.459,
+            "llegaron": 2.227,
+            "salieron": 10.526,
+            "perdidos": 1.053,
+            "nuevos": 0,
+            "fin": 8.2,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 1.8
+              },
+              {
+                "cod": "2.03",
+                "sitios": 0.4
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112429": {
+            "cod": "2.14",
+            "inicio": 6.658,
+            "llegaron": 3.752,
+            "salieron": 6.658,
+            "perdidos": 1.265,
+            "nuevos": 0,
+            "fin": 3.8,
+            "conversion": 0.81,
+            "deFuentes": [
+              {
+                "cod": "2.13",
+                "sitios": 3.8
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1036112433": {
+            "cod": "2.11",
+            "inicio": 9.474,
+            "llegaron": 9.474,
+            "salieron": 9.474,
+            "perdidos": 0.947,
+            "nuevos": 0,
+            "fin": 9.5,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.10",
+                "sitios": 9.5
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1418018399": {
+            "cod": "2.09",
+            "inicio": 0,
+            "llegaron": 0,
+            "salieron": 0,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.85,
+            "deFuentes": [],
+            "modo": "vacio"
+          }
+        }
+      },
+      {
+        "etiqueta": "10S",
+        "sitios": 37,
+        "kwp": 556,
+        "instalados": {
+          "sitios": 3,
+          "kwp": 46
+        },
+        "porEtapa": {
+          "267654734": {
+            "sitios": 3.8,
+            "kwp": 56
+          },
+          "267654738": {
+            "sitios": 0,
+            "kwp": 0
+          },
+          "268239144": {
+            "sitios": 8,
+            "kwp": 120
+          },
+          "1020227700": {
+            "sitios": 8.5,
+            "kwp": 128
+          },
+          "1021672592": {
+            "sitios": 3.5,
+            "kwp": 52
+          },
+          "1036112428": {
+            "sitios": 2.2,
+            "kwp": 33
+          },
+          "1036112429": {
+            "sitios": 3.8,
+            "kwp": 56
+          },
+          "1036112433": {
+            "sitios": 7.3,
+            "kwp": 110
+          },
+          "1418018399": {
+            "sitios": 0,
+            "kwp": 0
+          }
+        },
+        "traza": {
+          "267654734": {
+            "cod": "2.13",
+            "inicio": 3.752,
+            "llegaron": 3.752,
+            "salieron": 3.752,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 3.8,
+            "conversion": 1,
+            "deFuentes": [
+              {
+                "cod": "2.12",
+                "sitios": 3.8
+              }
+            ],
+            "modo": "cola"
+          },
+          "267654738": {
+            "cod": "2.04",
+            "inicio": 0,
+            "llegaron": 0,
+            "salieron": 0,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.8,
+            "deFuentes": [],
+            "modo": "vacio"
+          },
+          "268239144": {
+            "cod": "2.02",
+            "inicio": 8,
+            "llegaron": 0,
+            "salieron": 8,
+            "perdidos": 2.72,
+            "nuevos": 8,
+            "fin": 8,
+            "conversion": 0.66,
+            "deFuentes": [],
+            "modo": "cola"
+          },
+          "1020227700": {
+            "cod": "2.12",
+            "inicio": 8.526,
+            "llegaron": 8.526,
+            "salieron": 8.526,
+            "perdidos": 4.775,
+            "nuevos": 0,
+            "fin": 8.5,
+            "conversion": 0.44,
+            "deFuentes": [
+              {
+                "cod": "2.11",
+                "sitios": 8.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1021672592": {
+            "cod": "2.03",
+            "inicio": 3.469,
+            "llegaron": 3.469,
+            "salieron": 3.469,
+            "perdidos": 3.053,
+            "nuevos": 0,
+            "fin": 3.5,
+            "conversion": 0.12,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 3.5
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112428": {
+            "cod": "2.10",
+            "inicio": 8.16,
+            "llegaron": 2.227,
+            "salieron": 8.16,
+            "perdidos": 0.816,
+            "nuevos": 0,
+            "fin": 2.2,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.02",
+                "sitios": 1.8
+              },
+              {
+                "cod": "2.03",
+                "sitios": 0.4
+              }
+            ],
+            "modo": "cola"
+          },
+          "1036112429": {
+            "cod": "2.14",
+            "inicio": 3.752,
+            "llegaron": 3.752,
+            "salieron": 3.752,
+            "perdidos": 0.713,
+            "nuevos": 0,
+            "fin": 3.8,
+            "conversion": 0.81,
+            "deFuentes": [
+              {
+                "cod": "2.13",
+                "sitios": 3.8
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1036112433": {
+            "cod": "2.11",
+            "inicio": 9.474,
+            "llegaron": 7.344,
+            "salieron": 9.474,
+            "perdidos": 0.947,
+            "nuevos": 0,
+            "fin": 7.3,
+            "conversion": 0.9,
+            "deFuentes": [
+              {
+                "cod": "2.10",
+                "sitios": 7.3
+              }
+            ],
+            "modo": "proceso"
+          },
+          "1418018399": {
+            "cod": "2.09",
+            "inicio": 0,
+            "llegaron": 0,
+            "salieron": 0,
+            "perdidos": 0,
+            "nuevos": 0,
+            "fin": 0,
+            "conversion": 0.85,
+            "deFuentes": [],
+            "modo": "vacio"
+          }
+        }
+      }
+    ],
+    "sinEsfuerzo": [],
+    "sinSla": [],
+    "sinQuien": [],
+    "cuellos": [
+      {
+        "nombre": "Quoting",
+        "cap": 40,
+        "dem": [
+          101.5,
+          112.652,
+          100.673,
+          89.38,
+          78.087,
+          66.794,
+          48.005,
+          33.93,
+          26.461,
+          18.992
+        ],
+        "colas": [
+          "2.03",
+          "2.10",
+          "2.12"
+        ]
+      },
+      {
+        "nombre": "IX",
+        "cap": 40,
+        "dem": [
+          121,
+          152.977,
+          131.809,
+          110.536,
+          89.263,
+          67.991,
+          48.188,
+          33.284,
+          24.985,
+          16.686
+        ],
+        "colas": [
+          "2.09",
+          "2.10",
+          "2.12"
+        ]
+      },
+      {
+        "nombre": "Procurement",
+        "cap": 40,
+        "dem": [
+          67.5,
+          92.6,
+          76.126,
+          59.653,
+          43.179,
+          26.705,
+          15.132,
+          8.526,
+          8.526,
+          8.526
+        ],
+        "colas": [
+          "2.09",
+          "2.12"
+        ]
+      },
+      {
+        "nombre": "Product",
+        "cap": 40,
+        "dem": [
+          62,
+          80.4,
+          60.4,
+          40.4,
+          20.4,
+          0.4,
+          0,
+          0,
+          0,
+          0
+        ],
+        "colas": [
+          "2.09"
+        ]
+      },
+      {
+        "nombre": "Engineering",
+        "cap": 80,
+        "dem": [
+          144.4,
+          153.054,
+          154.214,
+          154.977,
+          155.741,
+          156.505,
+          125.615,
+          94.079,
+          62.542,
+          31.006
+        ],
+        "colas": [
+          "2.10"
+        ]
+      },
+      {
+        "nombre": "Planning",
+        "cap": 80,
+        "dem": [
+          74,
+          39.8,
+          20.8,
+          20.8,
+          20.8,
+          20.8,
+          20.8,
+          18.658,
+          15.752,
+          15.752
+        ],
+        "colas": [
+          "2.02",
+          "2.13"
+        ]
+      },
+      {
+        "nombre": "LiveOps",
+        "cap": 120,
+        "dem": [
+          40,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        "colas": [
+          "2.02"
+        ]
+      },
+      {
+        "nombre": "Design",
+        "cap": 60,
+        "dem": [
+          16.66,
+          4.249,
+          3.4,
+          3.4,
+          3.4,
+          3.4,
+          3.4,
+          3.4,
+          3.4,
+          3.4
+        ],
+        "colas": [
+          "2.03"
+        ]
+      }
+    ]
+  },
+  "meta": {
+    "entradaSemana": 125.685,
+    "entradaFuente": "tasa medida de punta a punta",
+    "necesita": [
+      {
+        "cod": "2.02",
+        "sitios": 201.097,
+        "entranSemana": 125.685,
+        "dias": 8,
+        "conversion": 0.66
+      },
+      {
+        "cod": "2.03",
+        "sitios": 49.771,
+        "entranSemana": 82.952,
+        "dias": 3,
+        "conversion": 0.12
+      },
+      {
+        "cod": "2.04",
+        "sitios": 9.954,
+        "entranSemana": 9.954,
+        "dias": 5,
+        "conversion": 0.8
+      },
+      {
+        "cod": "2.09",
+        "sitios": 4.778,
+        "entranSemana": 7.963,
+        "dias": 3,
+        "conversion": 0.85
+      },
+      {
+        "cod": "2.10",
+        "sitios": 5.415,
+        "entranSemana": 6.769,
+        "dias": 4,
+        "conversion": 0.9
+      },
+      {
+        "cod": "2.11",
+        "sitios": 3.655,
+        "entranSemana": 6.092,
+        "dias": 3,
+        "conversion": 0.9
+      },
+      {
+        "cod": "2.12",
+        "sitios": 3.29,
+        "entranSemana": 5.483,
+        "dias": 3,
+        "conversion": 0.44
+      },
+      {
+        "cod": "2.13",
+        "sitios": 0.965,
+        "entranSemana": 2.412,
+        "dias": 2,
+        "conversion": 1
+      },
+      {
+        "cod": "2.14",
+        "sitios": 0.965,
+        "entranSemana": 2.412,
+        "dias": 2,
+        "conversion": 0.81
+      }
+    ],
+    "horasEquipo": {
+      "Planning": 190.941,
+      "LiveOps": 502.742,
+      "Design": 81.293,
+      "Quoting": 86.232,
+      "IX": 20.215,
+      "Procurement": 9.465,
+      "Product": 15.927,
+      "Engineering": 25.722
+    },
+    "horasTipo": {
+      "Planning levantamiento": 188.528,
+      "Ejecución levantamiento": 502.742,
+      "Diseño y adicionales finales": 58.067,
+      "Diseño y adicionales finales (revisión)": 23.227,
+      "Costeo final Overhaul": 80.749,
+      "Revisión de IX": 7.963,
+      "Disponibilidad": 3.982,
+      "Creación de rutas de instalación": 15.927,
+      "Revisión de Ingenieria": 25.722,
+      "IX Aprobación diagrama unifilar": 6.769,
+      "VoBo Scoop RFP": 2.741,
+      "Procurement Quote": 5.483,
+      "IX Quote": 5.483,
+      "VoBo costo cotizado y OS": 2.741,
+      "Cierre de planeación": 2.412
+    }
+  }
+}
